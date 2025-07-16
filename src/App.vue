@@ -1,85 +1,54 @@
 <script setup>
 import { RouterLink, RouterView } from 'vue-router'
-import HelloWorld from './components/HelloWorld.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
+import LoadingOverlay from '@/components/LoadingOverlay.vue'
 </script>
 
 <template>
-  <header>
-    <img alt="Vue logo" class="logo" src="@/assets/logo.svg" width="125" height="125" />
-
-    <div class="wrapper">
-      <HelloWorld msg="You did it!" />
-
-      <nav>
-        <RouterLink to="/">Home</RouterLink>
-        <RouterLink to="/about">About</RouterLink>
+  <div class="bg-gray-900 text-white min-h-screen font-sans">
+    <header class="bg-gray-800 shadow-md">
+      <nav class="container mx-auto px-6 py-4">
+        <div class="flex items-center justify-between">
+          <div class="text-2xl font-bold text-white">
+            <RouterLink to="/">健身紀錄</RouterLink>
+          </div>
+          <div class="flex flex-wrap items-center space-x-2">
+            <RouterLink to="/workout" class="px-3 py-2 rounded-md text-gray-300 hover:text-white hover:bg-gray-700 transition-colors duration-300">立即開始</RouterLink>
+            <RouterLink to="/history" class="px-3 py-2 rounded-md text-gray-300 hover:text-white hover:bg-gray-700 transition-colors duration-300">訓練紀錄</RouterLink>
+            <RouterLink to="/templates" class="px-3 py-2 rounded-md text-gray-300 hover:text-white hover:bg-gray-700 transition-colors duration-300">自訂課表</RouterLink>
+            <RouterLink to="/exercises" class="px-3 py-2 rounded-md text-gray-300 hover:text-white hover:bg-gray-700 transition-colors duration-300">自訂動作</RouterLink>
+          </div>
+        </div>
       </nav>
-    </div>
-  </header>
+    </header>
 
-  <RouterView />
+    <main class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <RouterView v-slot="{ Component }">
+        <transition name="fade" mode="out-in">
+          <component :is="Component" />
+        </transition>
+      </RouterView>
+    </main>
+
+    <ConfirmModal />
+    <LoadingOverlay />
+  </div>
 </template>
 
-<style scoped>
-header {
-  line-height: 1.5;
-  max-height: 100vh;
+<style>
+.router-link-active {
+  background-color: rgb(55 65 81); /* bg-gray-700 */
+  color: rgb(255 255 255); /* text-white */
+  font-weight: 600; /* font-semibold */
 }
 
-.logo {
-  display: block;
-  margin: 0 auto 2rem;
+/* .fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
 }
 
-nav {
-  width: 100%;
-  font-size: 12px;
-  text-align: center;
-  margin-top: 2rem;
-}
-
-nav a.router-link-exact-active {
-  color: var(--color-text);
-}
-
-nav a.router-link-exact-active:hover {
-  background-color: transparent;
-}
-
-nav a {
-  display: inline-block;
-  padding: 0 1rem;
-  border-left: 1px solid var(--color-border);
-}
-
-nav a:first-of-type {
-  border: 0;
-}
-
-@media (min-width: 1024px) {
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
-  }
-
-  .logo {
-    margin: 0 2rem 0 0;
-  }
-
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
-  }
-
-  nav {
-    text-align: left;
-    margin-left: -1rem;
-    font-size: 1rem;
-
-    padding: 1rem 0;
-    margin-top: 1rem;
-  }
-}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+} */
 </style>
