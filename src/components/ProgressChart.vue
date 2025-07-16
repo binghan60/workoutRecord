@@ -298,7 +298,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="max-w-6xl mx-auto bg-gray-800 p-8 rounded-lg shadow-xl">
+  <div class="max-w-6xl mx-auto bg-gray-800 p-6 rounded-lg shadow-xl">
     <div v-if="chartData && chartData.dates.length > 1">
       <div ref="volumeChartContainer" class="mb-8" style="height: 400px; width: 100%"></div>
       <div ref="strengthChartContainer" style="height: 400px; width: 100%"></div>

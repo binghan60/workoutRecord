@@ -22,7 +22,7 @@ import LoadingOverlay from '@/components/LoadingOverlay.vue'
       </nav>
     </header>
 
-    <main class="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+    <main class="max-w-7xl mx-auto py-8 px-0 sm:px-6 lg:px-8">
       <RouterView v-slot="{ Component }">
         <transition name="fade" mode="out-in">
           <component :is="Component" />

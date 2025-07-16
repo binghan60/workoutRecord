@@ -43,7 +43,7 @@ const confirmDeleteWorkout = (workoutId) => {
 
 <template>
   <div class="mx-auto">
-    <div v-if="workoutStore.workouts.length === 0" class="text-center text-gray-400 bg-gray-800 p-8 rounded-lg">
+    <div v-if="workoutStore.workouts.length === 0" class="text-center text-gray-400 bg-gray-800 p-6 rounded-lg">
       <p class="text-lg">目前沒有任何訓練紀錄。</p>
       <p class="mt-2">立即開始記錄你的第一次訓練吧！</p>
     </div>
@@ -89,21 +89,9 @@ const confirmDeleteWorkout = (workoutId) => {
 
       <!-- Pagination Controls -->
       <div v-if="workoutStore.totalPages > 1" class="flex justify-center items-center mt-8 space-x-4 text-white">
-        <button
-          @click="workoutStore.goToPage(workoutStore.currentPage - 1)"
-          :disabled="workoutStore.currentPage === 1"
-          class="px-4 py-2 bg-gray-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-600"
-        >
-          &lt; 上一頁
-        </button>
+        <button @click="workoutStore.goToPage(workoutStore.currentPage - 1)" :disabled="workoutStore.currentPage === 1" class="px-4 py-2 bg-gray-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-600">&lt; 上一頁</button>
         <span class="font-semibold">第 {{ workoutStore.currentPage }} / {{ workoutStore.totalPages }} 頁</span>
-        <button
-          @click="workoutStore.goToPage(workoutStore.currentPage + 1)"
-          :disabled="workoutStore.currentPage === workoutStore.totalPages"
-          class="px-4 py-2 bg-gray-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-600"
-        >
-          下一頁 &gt;
-        </button>
+        <button @click="workoutStore.goToPage(workoutStore.currentPage + 1)" :disabled="workoutStore.currentPage === workoutStore.totalPages" class="px-4 py-2 bg-gray-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-600">下一頁 &gt;</button>
       </div>
     </div>
 

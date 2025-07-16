@@ -21,13 +21,13 @@ const handleAddExercise = (values, { resetForm }) => {
 </script>
 
 <template>
-  <div class="mx-auto bg-gray-800 p-8 rounded-lg shadow-xl">
+  <div class="mx-auto bg-gray-800 p-6 rounded-lg shadow-xl">
     <h1 class="text-3xl font-bold mb-6 text-center text-white">管理訓練動作</h1>
 
     <!-- 新增動作表單 -->
     <Form @submit="handleAddExercise" class="space-y-4 mb-8">
       <div class="flex flex-col md:flex-row gap-4">
-        <div class="flex-grow">
+        <div class="flex-grow relative pb-4">
           <Field
             name="exerciseName"
             type="text"
@@ -36,9 +36,9 @@ const handleAddExercise = (values, { resetForm }) => {
             placeholder="輸入新的動作名稱"
             class="w-full bg-gray-700 border border-gray-600 rounded-md p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <ErrorMessage name="exerciseName" class="text-red-400 text-sm mt-1" />
+          <ErrorMessage name="exerciseName" class="absolute bottom-0 left-0 text-red-400 text-xs" />
         </div>
-        <div class="flex-grow">
+        <div class="flex-grow relative pb-4">
           <Field
             name="muscleGroup"
             type="text"
@@ -47,7 +47,7 @@ const handleAddExercise = (values, { resetForm }) => {
             placeholder="訓練部位 (例如: 胸部)"
             class="w-full bg-gray-700 border border-gray-600 rounded-md p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <ErrorMessage name="muscleGroup" class="text-red-400 text-sm mt-1" />
+          <ErrorMessage name="muscleGroup" class="absolute bottom-0 left-0 text-red-400 text-xs" />
         </div>
       </div>
       <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-md transition-transform transform hover:scale-105">新增動作</button>

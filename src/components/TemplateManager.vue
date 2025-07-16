@@ -44,10 +44,10 @@ const confirmDeleteTemplate = (templateId, templateName) => {
 <template>
   <div class="mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
     <!-- 左側：建立新範本 -->
-    <div class="bg-gray-800 p-8 rounded-lg shadow-xl">
+    <div class="bg-gray-800 p-6 rounded-lg shadow-xl">
       <h1 class="text-3xl font-bold mb-6 text-center text-white">建立新課表</h1>
       <Form @submit="handleAddTemplate" class="space-y-6">
-        <div>
+        <div class="relative pb-4">
           <Field
             name="templateName"
             type="text"
@@ -56,7 +56,7 @@ const confirmDeleteTemplate = (templateId, templateName) => {
             placeholder="課表範本名稱 (例如: 胸推日)"
             class="w-full bg-gray-700 border border-gray-600 rounded-md p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <ErrorMessage name="templateName" class="text-red-400 text-sm mt-1" />
+          <ErrorMessage name="templateName" class="absolute bottom-0 left-0 text-red-400 text-xs" />
         </div>
 
         <div class="space-y-4 max-h-96 overflow-y-auto pr-2">
@@ -79,7 +79,7 @@ const confirmDeleteTemplate = (templateId, templateName) => {
     </div>
 
     <!-- 右側：已儲存的範本 -->
-    <div class="bg-gray-800 p-8 rounded-lg shadow-xl">
+    <div class="bg-gray-800 p-6 rounded-lg shadow-xl">
       <h1 class="text-3xl font-bold mb-6 text-center text-white">我的課表</h1>
       <div v-if="templateStore.templates.length === 0" class="text-center text-gray-400 py-10">
         <p>尚未建立任何課表範本。</p>
