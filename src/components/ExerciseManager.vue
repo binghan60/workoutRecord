@@ -1,10 +1,12 @@
 <script setup>
 import { ref } from 'vue'
 import { useExerciseStore } from '@/stores/exercise'
+import { useModalStore } from '@/stores/modal'
 import { getMuscleGroupColor } from '@/utils/colorUtils'
 import { Form, Field, ErrorMessage } from 'vee-validate'
 
 const exerciseStore = useExerciseStore()
+const modalStore = useModalStore()
 
 // 用於追蹤收合狀態的物件
 const collapsedGroups = ref({})
@@ -18,6 +20,12 @@ const handleAddExercise = (values, { resetForm }) => {
   exerciseStore.addExercise(values.exerciseName, values.muscleGroup)
   resetForm()
 }
+
+const confirmDeleteExercise = (exercise) => {
+  modalStore.showConfirmation('確認刪除', `您確定要刪除「${exercise.name}」這個訓練動作嗎？`, () => {
+    exerciseStore.deleteExercise(exercise.id)
+  })
+}
 </script>
 
 <template>
@@ -28,25 +36,11 @@ const handleAddExercise = (values, { resetForm }) => {
     <Form @submit="handleAddExercise" class="space-y-4 mb-8">
       <div class="flex flex-col md:flex-row gap-4">
         <div class="flex-grow relative pb-4">
-          <Field
-            name="exerciseName"
-            type="text"
-            label="動作名稱"
-            rules="required"
-            placeholder="輸入新的動作名稱"
-            class="w-full bg-gray-700 border border-gray-600 rounded-md p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <Field name="exerciseName" type="text" label="動作名稱" rules="required" placeholder="輸入新的動作名稱" class="w-full bg-gray-700 border border-gray-600 rounded-md p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" autocomplete="off" />
           <ErrorMessage name="exerciseName" class="absolute bottom-0 left-0 text-red-400 text-xs" />
         </div>
         <div class="flex-grow relative pb-4">
-          <Field
-            name="muscleGroup"
-            type="text"
-            label="訓練部位"
-            rules="required"
-            placeholder="訓練部位 (例如: 胸部)"
-            class="w-full bg-gray-700 border border-gray-600 rounded-md p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <Field name="muscleGroup" type="text" label="訓練部位" rules="required" placeholder="訓練部位 (例如: 胸部)" class="w-full bg-gray-700 border border-gray-600 rounded-md p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" autocomplete="off" />
           <ErrorMessage name="muscleGroup" class="absolute bottom-0 left-0 text-red-400 text-xs" />
         </div>
       </div>
@@ -67,7 +61,7 @@ const handleAddExercise = (values, { resetForm }) => {
               <div v-for="exercise in group" :key="exercise.id" class="bg-gray-800 p-3 rounded-md flex justify-between items-center">
                 <span class="text-gray-200 font-semibold">{{ exercise.name }}</span>
                 <div>
-                  <button v-if="exercise.isCustom" @click="exerciseStore.deleteExercise(exercise.id)" class="text-red-500 hover:text-red-400 font-semibold transition-colors px-3">刪除</button>
+                  <button v-if="exercise.isCustom" @click="confirmDeleteExercise(exercise)" class="text-red-500 hover:text-red-400 font-semibold transition-colors px-3">刪除</button>
                   <span v-else class="text-xs text-gray-500 font-medium px-2 py-1 bg-gray-600 rounded-full">內建</span>
                 </div>
               </div>

@@ -3,8 +3,6 @@ import { ref, computed, watch, onBeforeUnmount, onMounted } from 'vue'
 import { useWorkoutStore } from '@/stores/workout'
 import Highcharts from 'highcharts'
 
-
-
 // --- Chart Containers and Instances ---
 const volumeChartContainer = ref(null)
 const strengthChartContainer = ref(null)

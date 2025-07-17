@@ -3,5 +3,5 @@ import WorkoutHistory from '@/components/WorkoutHistory.vue'
 </script>
 
 <template>
-    <WorkoutHistory />
+  <WorkoutHistory />
 </template>

@@ -3,5 +3,5 @@ import TemplateManager from '@/components/TemplateManager.vue'
 </script>
 
 <template>
-    <TemplateManager />
+  <TemplateManager />
 </template>

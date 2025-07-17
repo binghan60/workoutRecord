@@ -3,5 +3,5 @@ import WorkoutForm from '@/components/WorkoutForm.vue'
 </script>
 
 <template>
-    <WorkoutForm />
+  <WorkoutForm />
 </template>

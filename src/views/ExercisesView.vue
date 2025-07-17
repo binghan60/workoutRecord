@@ -3,5 +3,5 @@ import ExerciseManager from '@/components/ExerciseManager.vue'
 </script>
 
 <template>
-    <ExerciseManager />
+  <ExerciseManager />
 </template>

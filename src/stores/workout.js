@@ -73,4 +73,3 @@ export const useWorkoutStore = defineStore('workout', () => {
     goToPage,
   }
 })
-
