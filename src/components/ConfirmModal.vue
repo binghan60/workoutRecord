@@ -8,7 +8,7 @@ const modalStore = useModalStore()
   <transition enter-active-class="transition-opacity duration-300 ease-out" enter-from-class="opacity-0" enter-to-class="opacity-100" leave-active-class="transition-opacity duration-200 ease-in" leave-from-class="opacity-100" leave-to-class="opacity-0">
     <div v-if="modalStore.isOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
       <transition enter-active-class="transition-all duration-300 ease-out" enter-from-class="transform scale-95 opacity-0" enter-to-class="transform scale-100 opacity-100" leave-active-class="transition-all duration-200 ease-in" leave-from-class="transform scale-100 opacity-100" leave-to-class="transform scale-95 opacity-0">
-        <div class="w-full max-w-md p-6 bg-gray-800 rounded-lg shadow-xl border border-gray-700">
+        <div v-if="modalStore.isOpen" class="w-full max-w-md p-6 bg-gray-800 rounded-lg shadow-xl border border-gray-700">
           <h2 class="text-2xl font-bold text-white mb-4">{{ modalStore.title }}</h2>
           <p class="text-gray-300 mb-6">{{ modalStore.message }}</p>
           <div class="flex justify-end space-x-4">

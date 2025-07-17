@@ -31,13 +31,9 @@ const handleAddTemplate = (values, { resetForm }) => {
 }
 
 const confirmDeleteTemplate = (templateId, templateName) => {
-  modalStore.showConfirmation(
-    '確認刪除課表',
-    `確定要刪除「${templateName}」這個課表範本嗎？`,
-    () => {
-      templateStore.deleteTemplate(templateId)
-    }
-  )
+  modalStore.showConfirmation('確認刪除課表', `確定要刪除「${templateName}」這個課表範本嗎？`, () => {
+    templateStore.deleteTemplate(templateId)
+  })
 }
 </script>
 
@@ -48,14 +44,7 @@ const confirmDeleteTemplate = (templateId, templateName) => {
       <h1 class="text-3xl font-bold mb-6 text-center text-white">建立新課表</h1>
       <Form @submit="handleAddTemplate" class="space-y-6">
         <div class="relative pb-4">
-          <Field
-            name="templateName"
-            type="text"
-            label="課表範本名稱"
-            rules="required"
-            placeholder="課表範本名稱 (例如: 胸推日)"
-            class="w-full bg-gray-700 border border-gray-600 rounded-md p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <Field name="templateName" type="text" label="課表範本名稱" rules="required" placeholder="課表範本名稱 (例如: 胸推日)" class="w-full bg-gray-700 border border-gray-600 rounded-md p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" autocomplete="off" />
           <ErrorMessage name="templateName" class="absolute bottom-0 left-0 text-red-400 text-xs" />
         </div>
 
@@ -90,8 +79,12 @@ const confirmDeleteTemplate = (templateId, templateName) => {
             <h3 class="text-xl font-bold text-white">{{ template.name }}</h3>
             <button @click="confirmDeleteTemplate(template.id, template.name)" class="text-red-500 hover:text-red-400 font-semibold">刪除</button>
           </div>
-          <ul class="list-disc list-inside text-gray-300 space-y-1">
-            <li v-for="exName in template.exercises" :key="exName">{{ exName }}</li>
+          <ul class="text-gray-300 space-y-2">
+            <li v-for="(ex, index) in template.exercises" :key="index" class="bg-gray-600 p-2 rounded-md">
+              <span class="font-semibold">{{ ex.name }}:</span> │ │ 136 + <span v-if="ex.sets" class="ml-2">{{ ex.sets }} 組</span>
+              <span v-if="ex.reps" class="ml-1">x {{ ex.reps }} 次</span>
+              <span v-if="ex.weight" class="ml-1">@ {{ ex.weight }} kg</span>
+            </li>
           </ul>
         </div>
       </div>

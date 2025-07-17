@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch, onBeforeUnmount, nextTick, onMounted, defineProps } from 'vue'
+import { ref, computed, watch, onBeforeUnmount, nextTick, onMounted } from 'vue'
 import { useWorkoutStore } from '@/stores/workout'
 import Highcharts from 'highcharts'
 
