@@ -63,6 +63,31 @@ export const useWorkoutStore = defineStore('workout', () => {
     }
   }
 
+  /**
+   * 尋找上週同一個訓練的紀錄
+   * @param {string} workoutName - 訓練課表的名稱
+   * @returns {object | null} - 上週的訓練紀錄，或 null
+   */
+  function findLastWeekWorkout(workoutName) {
+    const oneWeekAgo = new Date()
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
+
+    // 尋找介於 6 到 8 天前的紀錄，給予一點彈性
+    const lowerBound = new Date(oneWeekAgo)
+    lowerBound.setDate(lowerBound.getDate() - 1)
+    const upperBound = new Date(oneWeekAgo)
+    upperBound.setDate(upperBound.getDate() + 1)
+
+    const lastWorkout = workouts.value
+      .filter((w) => {
+        const workoutDate = new Date(w.createdAt)
+        return w.name === workoutName && workoutDate >= lowerBound && workoutDate <= upperBound
+      })
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0] // 取最新的
+
+    return lastWorkout || null
+  }
+
   return {
     workouts,
     currentPage,
@@ -71,5 +96,6 @@ export const useWorkoutStore = defineStore('workout', () => {
     addWorkout,
     deleteWorkout,
     goToPage,
+    findLastWeekWorkout,
   }
 })

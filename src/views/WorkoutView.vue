@@ -1,7 +1,7 @@
 <script setup>
-import WorkoutForm from '@/components/WorkoutForm.vue'
+import DailyWorkout from '@/components/DailyWorkout.vue'
 </script>
 
 <template>
-  <WorkoutForm />
+  <DailyWorkout />
 </template>
