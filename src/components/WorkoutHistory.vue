@@ -75,6 +75,7 @@ const confirmDeleteWorkout = (workoutId) => {
                     <th class="p-2 font-semibold">組別</th>
                     <th class="p-2 font-semibold">重量 (kg)</th>
                     <th class="p-2 font-semibold">次數</th>
+                    <th class="p-2 font-semibold">休息時間(s)</th>
                     <th class="p-2 font-semibold">疲勞程度</th>
                   </tr>
                 </thead>

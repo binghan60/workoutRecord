@@ -28,6 +28,7 @@ const currentSetIndex = ref(0)
 const isResting = ref(false)
 const restTimeRemaining = ref(0)
 const restTimerInterval = ref(null)
+const restStartInfo = ref(null)
 
 // --- Computed Properties ---
 const allExercises = computed(() => exerciseStore.allExercises)
@@ -40,6 +41,39 @@ const fatigueOptions = [
   { level: '力竭', emoji: '🥵' },
 ]
 const currentExercises = computed(() => formRef.value?.values?.exercises || [])
+
+const isFinalSet = computed(() => {
+  const exercises = currentExercises.value
+  if (!exercises || exercises.length === 0) return false
+
+  const isLastExercise = currentExerciseIndex.value === exercises.length - 1
+  if (!isLastExercise) return false
+
+  const currentEx = exercises[currentExerciseIndex.value]
+  if (!currentEx || !currentEx.sets) return false
+
+  const isLastSet = currentSetIndex.value === currentEx.sets.length - 1
+  return isLastSet
+})
+
+const totalSetsCount = computed(() => {
+  const exercises = currentExercises.value;
+  if (!exercises) return 0;
+  return exercises.reduce((total, ex) => total + (ex.sets ? ex.sets.length : 0), 0);
+});
+
+const completedSetsCount = computed(() => {
+  const exercises = currentExercises.value;
+  if (!exercises || exercises.length === 0) return 0;
+
+  let count = 0;
+  for (let i = 0; i < currentExerciseIndex.value; i++) {
+    count += exercises[i].sets ? exercises[i].sets.length : 0;
+  }
+  count += currentSetIndex.value;
+  
+  return count;
+});
 
 // --- Lifecycle Hooks ---
 onMounted(() => {
@@ -70,6 +104,7 @@ const loadDailyWorkout = () => {
             reps: ex.reps || '',
             weight: ex.weight || '',
             fatigueLevel: '適中',
+            actualRestTime: null,
           })),
         })),
       })
@@ -111,28 +146,55 @@ const getInitialValues = computed(() => {
 
 // --- Task Flow Methods ---
 const navigateTo = (exIndex, setIndex) => {
-  const exercises = currentExercises.value
-  if (!exercises[exIndex]) return
+  const exercises = currentExercises.value;
+  if (!exercises.length || !exercises[exIndex]) return;
 
-  if (exercises[exIndex].sets[setIndex]) {
-    currentExerciseIndex.value = exIndex
-    currentSetIndex.value = setIndex
-  } else if (exercises[exIndex + 1]) {
-    currentExerciseIndex.value = exIndex + 1
-    currentSetIndex.value = 0
-  } else {
-    currentExerciseIndex.value = exIndex
-    currentSetIndex.value = exercises[exIndex].sets.length -1
+  // Handle moving forward
+  if (setIndex >= exercises[exIndex].sets.length) {
+    if (exercises[exIndex + 1]) { // More exercises left
+      currentExerciseIndex.value = exIndex + 1;
+      currentSetIndex.value = 0;
+    } else { // At the end of the last exercise
+      currentExerciseIndex.value = exIndex;
+      currentSetIndex.value = exercises[exIndex].sets.length - 1;
+    }
+    return;
   }
+
+  // Handle moving backward
+  if (setIndex < 0) {
+    if (exIndex > 0) { // Previous exercises exist
+      currentExerciseIndex.value = exIndex - 1;
+      currentSetIndex.value = exercises[exIndex - 1].sets.length - 1;
+    } else { // At the start of the first exercise
+      currentExerciseIndex.value = 0;
+      currentSetIndex.value = 0;
+    }
+    return;
+  }
+  
+  // Normal navigation within the same exercise's sets
+  currentExerciseIndex.value = exIndex;
+  currentSetIndex.value = setIndex;
 }
 
 const completeSet = () => {
   const exIndex = currentExerciseIndex.value
+  const setIndex = currentSetIndex.value
   const exercise = currentExercises.value[exIndex]
   
-  stopRestTimer()
+  stopRestTimer() // Stop any previous timer and record its rest time
+
   isResting.value = true
-  restTimeRemaining.value = exercise.restTime
+  const plannedRest = exercise.restTime
+  restTimeRemaining.value = plannedRest
+  restStartInfo.value = { 
+    exIndex, 
+    setIndex, 
+    initialPlannedRest: plannedRest, 
+    totalRestTaken: 0 
+  }
+
   restTimerInterval.value = setInterval(() => {
     restTimeRemaining.value--
     if (restTimeRemaining.value <= 0) {
@@ -146,8 +208,27 @@ const completeSet = () => {
 const stopRestTimer = () => {
   clearInterval(restTimerInterval.value)
   restTimerInterval.value = null
+
+  if (isResting.value && restStartInfo.value) {
+    const { exIndex, setIndex, initialPlannedRest, totalRestTaken } = restStartInfo.value
+    const timeRemaining = restTimeRemaining.value > 0 ? restTimeRemaining.value : 0
+    const actualRest = (initialPlannedRest - timeRemaining) + totalRestTaken
+    
+    // Update the form value directly
+    const fieldName = `exercises[${exIndex}].sets[${setIndex}].actualRestTime`
+    formRef.value.setFieldValue(fieldName, actualRest)
+  }
+
   isResting.value = false
+  restStartInfo.value = null
 }
+
+const addRestTime = (seconds) => {
+  restTimeRemaining.value += seconds;
+  if (restStartInfo.value) {
+    restStartInfo.value.totalRestTaken += seconds;
+  }
+};
 
 // --- Form and Data Methods ---
 const getLastSetData = (exerciseName, setIndex) => {
@@ -211,12 +292,16 @@ const handleSubmit = (values) => {
 </script>
 
 <template>
-  <div class="bg-gray-800 p-6 rounded-lg shadow-xl mx-auto max-w-4xl relative overflow-hidden">
+  <div class="bg-gray-800 p-6 rounded-lg shadow-xl mx-auto relative overflow-hidden">
     <!-- Rest Timer Overlay -->
     <div v-if="isResting" class="fixed inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center z-50">
       <div class="text-center">
         <p class="text-4xl font-bold text-gray-400 mb-4">組間休息</p>
         <p class="text-9xl font-mono font-bold text-white">{{ Math.floor(restTimeRemaining / 60).toString().padStart(2, '0') }}:{{ (restTimeRemaining % 60).toString().padStart(2, '0') }}</p>
+        <div class="mt-6 flex justify-center gap-x-4">
+          <button @click="addRestTime(10)" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md">+10s</button>
+          <button @click="addRestTime(30)" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md">+30s</button>
+        </div>
         <button @click="stopRestTimer" class="mt-8 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-md text-lg">
           跳過休息
         </button>
@@ -241,11 +326,11 @@ const handleSubmit = (values) => {
           <!-- Progress Bar -->
           <div class="px-1 mb-4">
             <div class="flex justify-between mb-1">
-              <span class="text-base font-medium text-blue-400">動作進度</span>
-              <span class="text-sm font-medium text-blue-400">{{ currentExerciseIndex + 1 }} / {{ fields.length }}</span>
+              <span class="text-base font-medium text-blue-400">總組數進度</span>
+              <span class="text-sm font-medium text-blue-400">{{ completedSetsCount }} / {{ totalSetsCount }}</span>
             </div>
             <div class="w-full bg-gray-700 rounded-full h-2.5">
-              <div class="bg-blue-600 h-2.5 rounded-full transition-all duration-500" :style="{ width: `${((currentExerciseIndex) / fields.length) * 100}%` }"></div>
+              <div class="bg-blue-600 h-2.5 rounded-full transition-all duration-500" :style="{ width: `${(completedSetsCount / totalSetsCount) * 100}%` }"></div>
             </div>
           </div>
 
@@ -267,7 +352,7 @@ const handleSubmit = (values) => {
                 <FieldArray :name="`exercises[${exIndex}].sets`" v-slot="{ fields: setFields, push: pushSet, remove: removeSet }">
                   <div class="text-center text-gray-300 mb-4">第 {{ currentSetIndex + 1 }} / {{ setFields.length }} 組</div>
                   <div v-for="(setField, setIndex) in setFields" :key="setField.key">
-                    <div v-if="setIndex === currentSetIndex" class="grid grid-cols-12 gap-2 items-center">
+                    <div v-show="setIndex === currentSetIndex" class="grid grid-cols-12 gap-2 items-center">
                       <div class="col-span-3 relative">
                         <Field :name="`exercises[${exIndex}].sets[${setIndex}].reps`" type="number" placeholder="次數" class="w-full bg-gray-600 border-gray-500 rounded-md p-3 text-white text-center h-full text-lg" />
                         <span class="absolute top-full left-0 right-0 text-center text-yellow-400 text-xs pt-1">{{ getLastSetData(field.value.name, setIndex) }}</span>
@@ -314,7 +399,7 @@ const handleSubmit = (values) => {
             </button>
           </div>
 
-          <button v-if="currentExerciseIndex === fields.length - 1 && currentSetIndex === fields[currentExerciseIndex]?.value.sets.length - 1" 
+          <button v-if="isFinalSet" 
                   type="submit" 
                   class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-md text-xl"
                   :disabled="fields.length === 0">

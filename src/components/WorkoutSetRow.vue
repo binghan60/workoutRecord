@@ -29,6 +29,7 @@ const fatigueInfo = computed(() => {
     <td class="p-2 font-bold">#{{ index + 1 }}</td>
     <td class="p-2">{{ set.weight || 'N/A' }}</td>
     <td class="p-2">{{ set.reps || 'N/A' }}</td>
+    <td class="p-2">{{ set.actualRestTime !== null ? set.actualRestTime + 's' : 'N/A' }}</td>
     <td :class="['p-2 font-semibold', fatigueInfo.color]">
       <span class="text-xl mr-1">{{ fatigueInfo.emoji }}</span>
       {{ set.fatigueLevel || 'N/A' }}

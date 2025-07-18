@@ -2,11 +2,12 @@
 import { RouterLink, RouterView } from 'vue-router'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import LoadingOverlay from '@/components/LoadingOverlay.vue'
+import MobileNavBar from '@/components/MobileNavBar.vue'
 </script>
 
 <template>
-  <div class="bg-gray-900 text-white min-h-screen font-sans">
-    <header class="bg-gray-800 shadow-md">
+  <div class="bg-gray-900 text-white min-h-screen font-sans pb-16 sm:pb-0"> <!-- Add pb-16 for mobile nav bar height -->
+    <header class="bg-gray-800 shadow-md hidden sm:block"> <!-- Hide on small screens -->
       <nav class="container mx-auto px-6 py-4">
         <div class="flex items-center justify-between">
           <div class="text-2xl font-bold text-white">
@@ -32,6 +33,7 @@ import LoadingOverlay from '@/components/LoadingOverlay.vue'
 
     <ConfirmModal />
     <LoadingOverlay />
+    <MobileNavBar /> <!-- Add MobileNavBar here -->
   </div>
 </template>
 
