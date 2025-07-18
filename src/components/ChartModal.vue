@@ -21,7 +21,7 @@ const closeModal = () => {
 
 <template>
   <transition enter-active-class="transition-opacity duration-300 ease-out" leave-active-class="transition-opacity duration-200 ease-in" enter-from-class="opacity-0" leave-to-class="opacity-0">
-    <div v-if="visible" @click.self="closeModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-75">
+    <div v-if="visible" @click.self="closeModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
       <transition enter-active-class="transition-all duration-300 ease-out" leave-active-class="transition-all duration-200 ease-in" enter-from-class="opacity-0 transform -translate-y-8" leave-to-class="opacity-0 transform -translate-y-8">
         <div v-if="visible" class="bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl p-6 mx-4">
           <header class="flex justify-between items-center border-b border-gray-700 pb-4 mb-4">

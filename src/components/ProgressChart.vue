@@ -147,9 +147,17 @@ const createVolumeChart = (data) => {
     },
     series: [
       {
+        type: 'area',
         name: '訓練總量',
         data: data.dates.map((date, i) => [date, data.volumes[i]]),
         color: darkThemeOptions.colors[0],
+        fillColor: {
+          linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 },
+          stops: [
+            [0, Highcharts.color(darkThemeOptions.colors[0]).setOpacity(0.5).get('rgba')],
+            [1, Highcharts.color(darkThemeOptions.colors[0]).setOpacity(0).get('rgba')],
+          ],
+        },
         marker: {
           enabled: true,
           radius: 4,
@@ -204,18 +212,34 @@ const createStrengthChart = (data) => {
     },
     series: [
       {
+        type: 'area',
         name: '最大重量',
         data: data.dates.map((date, i) => [date, data.maxWeights[i]]),
         color: darkThemeOptions.colors[1],
+        fillColor: {
+          linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 },
+          stops: [
+            [0, Highcharts.color(darkThemeOptions.colors[1]).setOpacity(0.5).get('rgba')],
+            [1, Highcharts.color(darkThemeOptions.colors[1]).setOpacity(0).get('rgba')],
+          ],
+        },
         marker: {
           enabled: true,
           radius: 4,
         },
       },
       {
+        type: 'area',
         name: '預估 1RM',
         data: data.dates.map((date, i) => [date, data.estimated1RMs[i]]),
         color: darkThemeOptions.colors[2],
+        fillColor: {
+          linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 },
+          stops: [
+            [0, Highcharts.color(darkThemeOptions.colors[2]).setOpacity(0.5).get('rgba')],
+            [1, Highcharts.color(darkThemeOptions.colors[2]).setOpacity(0).get('rgba')],
+          ],
+        },
         marker: {
           enabled: true,
           radius: 4,

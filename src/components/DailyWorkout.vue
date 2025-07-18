@@ -294,7 +294,7 @@ const handleSubmit = (values) => {
 <template>
   <div class="bg-gray-800 p-6 rounded-lg shadow-xl mx-auto relative overflow-hidden">
     <!-- Rest Timer Overlay -->
-    <div v-if="isResting" class="fixed inset-0 bg-black bg-opacity-80 flex flex-col items-center justify-center z-50">
+    <div v-if="isResting" class="fixed inset-0 bg-black/80 flex flex-col items-center justify-center z-50">
       <div class="text-center">
         <p class="text-4xl font-bold text-gray-400 mb-4">組間休息</p>
         <p class="text-9xl font-mono font-bold text-white">{{ Math.floor(restTimeRemaining / 60).toString().padStart(2, '0') }}:{{ (restTimeRemaining % 60).toString().padStart(2, '0') }}</p>
@@ -330,7 +330,7 @@ const handleSubmit = (values) => {
               <span class="text-sm font-medium text-blue-400">{{ completedSetsCount }} / {{ totalSetsCount }}</span>
             </div>
             <div class="w-full bg-gray-700 rounded-full h-2.5">
-              <div class="bg-blue-600 h-2.5 rounded-full transition-all duration-500" :style="{ width: `${(completedSetsCount / totalSetsCount) * 100}%` }"></div>
+              <div class="bg-gradient-to-r from-green-400 to-blue-500 h-2.5 rounded-full transition-all duration-500" :style="{ width: `${(completedSetsCount / totalSetsCount) * 100}%` }"></div>
             </div>
           </div>
 
