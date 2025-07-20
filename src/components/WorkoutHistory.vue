@@ -5,7 +5,6 @@ import { useModalStore } from '@/stores/modal'
 import { computed, ref } from 'vue'
 import { getMuscleGroupColor } from '@/utils/colorUtils'
 import ChartModal from './ChartModal.vue'
-import WorkoutSetRow from './WorkoutSetRow.vue'
 
 const workoutStore = useWorkoutStore()
 const exerciseStore = useExerciseStore()
@@ -49,13 +48,13 @@ const confirmDeleteWorkout = (workoutId) => {
     </div>
     <div v-else>
       <div class="space-y-8">
-        <div v-for="workout in workouts" :key="workout.id" class="bg-gray-800 p-6 rounded-lg shadow-lg">
+        <div v-for="workout in workouts" :key="workout.id" class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg">
           <div class="flex justify-between items-start mb-4 border-b border-gray-700 pb-3">
             <div>
               <h2 class="text-2xl font-bold text-white mb-1">{{ workout.name }}</h2>
               <p class="text-sm text-gray-400">{{ formatDate(workout.createdAt) }}</p>
             </div>
-            <button @click="confirmDeleteWorkout(workout.id)" class="text-red-500 hover:text-red-400 transition-colors font-semibold py-2 px-4 rounded-lg bg-gray-700 hover:bg-gray-600">刪除</button>
+            <button @click="confirmDeleteWorkout(workout.id)" class="text-red-500 hover:text-red-400 transition-colors font-semibold py-2 px-3 rounded-lg bg-gray-700 hover:bg-gray-600 text-sm">刪除</button>
           </div>
 
           <div class="space-y-6">
@@ -69,20 +68,27 @@ const confirmDeleteWorkout = (workoutId) => {
                 </span>
               </div>
 
-              <table class="w-full text-center bg-gray-700 rounded-md overflow-hidden">
-                <thead class="bg-gray-900/50 text-gray-300">
-                  <tr>
-                    <th class="p-2 font-semibold">組別</th>
-                    <th class="p-2 font-semibold">重量 (kg)</th>
-                    <th class="p-2 font-semibold">次數</th>
-                    <th class="p-2 font-semibold">休息時間(s)</th>
-                    <th class="p-2 font-semibold">疲勞程度</th>
-                  </tr>
-                </thead>
-                <tbody class="text-gray-300">
-                  <WorkoutSetRow v-for="(set, setIndex) in exercise.sets" :key="setIndex" :set="set" :index="setIndex" />
-                </tbody>
-              </table>
+              <div class="overflow-x-auto">
+                <table class="w-full text-center bg-gray-700 rounded-md overflow-hidden">
+                  <thead class="bg-gray-900/50 text-gray-300 text-sm">
+                    <tr>
+                      <th class="p-2 font-semibold">組</th>
+                      <th class="p-2 font-semibold">重量(kg)</th>
+                      <th class="p-2 font-semibold">次數</th>
+                      <th class="p-2 font-semibold">休息(s)</th>
+                    </tr>
+                  </thead>
+                  <tbody class="text-gray-300">
+                    <tr v-for="(set, setIndex) in exercise.sets" :key="setIndex" class="border-b border-gray-600/50 last:border-b-0">
+                      <td class="p-2">{{ setIndex + 1 }}</td>
+                      <td class="p-2">{{ set.weight }}</td>
+                      <td class="p-2">{{ set.reps }}</td>
+                      <!-- Display actualRestTime if available, otherwise N/A -->
+                      <td class="p-2 text-gray-400">{{ set.actualRestTime || 'N/A' }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>

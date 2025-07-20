@@ -6,24 +6,8 @@ import MobileNavBar from '@/components/MobileNavBar.vue'
 </script>
 
 <template>
-  <div class="bg-gray-900 text-white min-h-screen font-sans pb-16 sm:pb-0"> <!-- Add pb-16 for mobile nav bar height -->
-    <header class="bg-gray-800 shadow-md hidden sm:block"> <!-- Hide on small screens -->
-      <nav class="container mx-auto px-6 py-4">
-        <div class="flex items-center justify-between">
-          <div class="text-2xl font-bold text-white">
-            <RouterLink to="/">健身紀錄</RouterLink>
-          </div>
-          <div class="flex flex-wrap items-center space-x-2">
-            <RouterLink to="/workout" class="px-3 py-2 rounded-md text-gray-300 hover:text-white hover:bg-gray-700 transition-colors duration-300">立即開始</RouterLink>
-            <RouterLink to="/history" class="px-3 py-2 rounded-md text-gray-300 hover:text-white hover:bg-gray-700 transition-colors duration-300">訓練紀錄</RouterLink>
-            <RouterLink to="/templates" class="px-3 py-2 rounded-md text-gray-300 hover:text-white hover:bg-gray-700 transition-colors duration-300">自訂課表</RouterLink>
-            <RouterLink to="/exercises" class="px-3 py-2 rounded-md text-gray-300 hover:text-white hover:bg-gray-700 transition-colors duration-300">自訂動作</RouterLink>
-          </div>
-        </div>
-      </nav>
-    </header>
-
-    <main class="max-w-7xl mx-auto py-8 px-0 sm:px-6 lg:px-8">
+  <div id="app-shell" class="flex flex-col h-screen bg-gray-900 text-white font-sans">
+    <main class="flex-grow overflow-y-auto pb-20 sm:pb-4">
       <RouterView v-slot="{ Component }">
         <transition name="fade" mode="out-in">
           <component :is="Component" />
@@ -33,18 +17,22 @@ import MobileNavBar from '@/components/MobileNavBar.vue'
 
     <ConfirmModal />
     <LoadingOverlay />
-    <MobileNavBar /> <!-- Add MobileNavBar here -->
+    <MobileNavBar />
   </div>
 </template>
 
 <style>
 .router-link-active {
-  background-color: rgb(55 65 81); /* bg-gray-700 */
-  color: rgb(255 255 255); /* text-white */
-  font-weight: 600; /* font-semibold */
+  /* In MobileNavBar, active styles are handled differently */
 }
 
-/* .fade-enter-active,
+#app-shell main a {
+  color: #3b82f6; /* blue-500 */
+  text-decoration: underline;
+}
+
+/* Keep the fade transition */
+.fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.2s ease;
 }
@@ -52,5 +40,5 @@ import MobileNavBar from '@/components/MobileNavBar.vue'
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
-} */
+}
 </style>

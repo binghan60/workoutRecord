@@ -15,24 +15,35 @@ export const useTemplateStore = defineStore('template', () => {
 
   // --- STATE ---
   const templates = ref(JSON.parse(localStorage.getItem('workoutTemplates')) || [])
-  const schedule = ref(JSON.parse(localStorage.getItem('workoutSchedule')) || {
-    '星期一': [],
-    '星期二': [],
-    '星期三': [],
-    '星期四': [],
-    '星期五': [],
-    '星期六': [],
-    '星期日': [],
-  })
+
+  const defaultSchedule = {
+    星期一: [],
+    星期二: [],
+    星期三: [],
+    星期四: [],
+    星期五: [],
+    星期六: [],
+    星期日: [],
+  }
+  const savedSchedule = JSON.parse(localStorage.getItem('workoutSchedule'))
+  const schedule = ref({ ...defaultSchedule, ...savedSchedule })
 
   // --- WATCHERS ---
-  watch(templates, (newTemplates) => {
-    localStorage.setItem('workoutTemplates', JSON.stringify(newTemplates))
-  }, { deep: true })
+  watch(
+    templates,
+    (newTemplates) => {
+      localStorage.setItem('workoutTemplates', JSON.stringify(newTemplates))
+    },
+    { deep: true },
+  )
 
-  watch(schedule, (newSchedule) => {
-    localStorage.setItem('workoutSchedule', JSON.stringify(newSchedule))
-  }, { deep: true })
+  watch(
+    schedule,
+    (newSchedule) => {
+      localStorage.setItem('workoutSchedule', JSON.stringify(newSchedule))
+    },
+    { deep: true },
+  )
 
   // --- GETTERS ---
   const getTemplateById = computed(() => {
@@ -69,7 +80,7 @@ export const useTemplateStore = defineStore('template', () => {
         templates.value.splice(index, 1)
 
         // 從所有排程日中移除這個範本
-        daysOfWeek.forEach(day => {
+        daysOfWeek.forEach((day) => {
           const scheduleIndex = schedule.value[day].indexOf(templateId)
           if (scheduleIndex > -1) {
             schedule.value[day].splice(scheduleIndex, 1)
