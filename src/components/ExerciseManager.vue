@@ -29,8 +29,8 @@ const confirmDeleteExercise = (exercise) => {
 </script>
 
 <template>
-  <div class="mx-auto bg-gray-800 p-6 rounded-lg shadow-xl">
-    <h1 class="text-3xl font-bold mb-6 text-center text-white">管理訓練動作</h1>
+  <div class="mx-auto p-4 rounded-lg shadow-xl">
+    <h1 class="text-2xl font-semibold mb-4 text-white border-b-2 border-gray-700 pb-2">管理訓練動作</h1>
 
     <!-- 新增動作表單 -->
     <Form @submit="handleAddExercise" class="space-y-4 mb-8">

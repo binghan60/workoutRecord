@@ -87,24 +87,20 @@ const selectTemplate = (templateId) => {
 const availableTemplatesForSelectedDay = computed(() => {
   if (!selectedDay.value) return []
   const scheduledIds = templateStore.schedule[selectedDay.value] || []
-  return templateStore.templates.filter(t => !scheduledIds.includes(t.id))
+  return templateStore.templates.filter((t) => !scheduledIds.includes(t.id))
 })
 </script>
 
 <template>
-  <div> <!-- Add a single root element -->
+  <div>
+    <!-- Add a single root element -->
     <!-- Add Template Modal -->
     <div v-if="isModalOpen" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="isModalOpen = false">
       <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
         <div class="p-6">
           <h3 class="text-xl font-bold text-white text-center mb-4">新增課表到 {{ selectedDay }}</h3>
           <div v-if="availableTemplatesForSelectedDay.length > 0" class="space-y-3 max-h-[60vh] overflow-y-auto">
-            <button
-              v-for="template in availableTemplatesForSelectedDay"
-              :key="template.id"
-              @click="selectTemplate(template.id)"
-              class="w-full text-left bg-gray-700 hover:bg-gray-600 text-white font-semibold p-4 rounded-lg transition-colors"
-            >
+            <button v-for="template in availableTemplatesForSelectedDay" :key="template.id" @click="selectTemplate(template.id)" class="w-full text-left bg-gray-700 hover:bg-gray-600 text-white font-semibold p-4 rounded-lg transition-colors">
               {{ template.name }}
             </button>
           </div>
@@ -112,26 +108,24 @@ const availableTemplatesForSelectedDay = computed(() => {
             <p>沒有其他可用的課表了。</p>
             <p class="text-sm mt-1">所有課表都已經被加到這一天的排程中了。</p>
           </div>
-          <button @click="isModalOpen = false" class="mt-6 w-full bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded">
-            關閉
-          </button>
+          <button @click="isModalOpen = false" class="mt-6 w-full bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded">關閉</button>
         </div>
       </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
       <!-- 左欄：建立與管理範本 -->
       <div class="lg:col-span-1 space-y-8">
         <!-- 建立新範本 -->
-        <div class="bg-gray-800 p-6 rounded-lg shadow-xl">
-          <h2 class="text-2xl font-bold mb-6 text-center text-white">建立新課表</h2>
+        <div class="p-4">
+          <h2 class="text-2xl font-semibold mb-4 text-white border-b-2 border-gray-700 pb-2">課表管理</h2>
           <Form @submit="handleAddTemplate" class="space-y-6">
-            <div class="relative pb-4">
+            <div class="relative pb-4 mb-2">
               <Field name="templateName" type="text" label="課表名稱" rules="required" placeholder="例如: 胸推日" class="w-full bg-gray-700 border border-gray-600 rounded-md p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500" autocomplete="off" />
               <ErrorMessage name="templateName" class="absolute bottom-0 left-0 text-red-400 text-xs" />
             </div>
 
-            <div class="space-y-4 max-h-[40vh] overflow-y-auto pr-2">
+            <div class="bg-gray-800 space-y-4 max-h-[55vh] overflow-y-auto pr-2">
               <h3 class="text-xl font-semibold text-white">選擇動作</h3>
               <div v-for="(group, groupName) in exerciseStore.groupedExercises" :key="groupName">
                 <h4 :class="['text-md font-bold inline-block px-3 py-1 rounded-md mb-2', getMuscleGroupColor(groupName)]">{{ groupName }}</h4>
@@ -170,8 +164,8 @@ const availableTemplatesForSelectedDay = computed(() => {
         </div>
 
         <!-- 已儲存的範本列表 -->
-        <div class="bg-gray-800 p-6 rounded-lg shadow-xl">
-          <h2 class="text-2xl font-bold mb-6 text-center text-white">我的課表庫</h2>
+        <div class="p-4">
+          <h2 class="text-2xl font-semibold mb-4 text-white border-b-2 border-gray-700 pb-2">我的課表庫</h2>
           <div v-if="templateStore.templates.length === 0" class="text-center text-gray-400 py-10"><p>尚未建立任何課表。</p></div>
           <div v-else class="space-y-4 max-h-[50vh] overflow-y-auto pr-2">
             <div v-for="template in templateStore.templates" :key="template.id" :draggable="true" @dragstart="handleDragStart($event, template.id)" class="bg-gray-700 p-3 rounded-lg cursor-grab active:cursor-grabbing">
@@ -188,11 +182,11 @@ const availableTemplatesForSelectedDay = computed(() => {
       </div>
 
       <!-- 右欄：週課表排程 -->
-      <div class="lg:col-span-2 bg-gray-800 p-6 rounded-lg shadow-xl">
-        <h2 class="text-2xl font-bold mb-6 text-center text-white">週課表排程</h2>
+      <div class="lg:col-span-2 p-4 rounded-lg shadow-xl">
+        <h2 class="text-2xl font-semibold mb-4 text-white border-b-2 border-gray-700 pb-2">週課表排程</h2>
         <p class="text-center text-gray-400 mb-6 text-sm">從左側拖曳課表，或點擊 <span class="text-blue-400 font-bold mx-1">+</span> 按鈕來新增。</p>
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          <div v-for="day in templateStore.daysOfWeek" :key="day" class="bg-gray-900 p-4 rounded-lg min-h-[200px]" @dragover.prevent @drop="handleDrop(day, $event)">
+          <div v-for="day in templateStore.daysOfWeek" :key="day" class="bg-gray-800 p-4 rounded-lg min-h-[200px]" @dragover.prevent @drop="handleDrop(day, $event)">
             <div class="flex justify-between items-center mb-4 border-b-2 border-gray-700 pb-2">
               <h3 class="font-bold text-lg text-white">{{ day }}</h3>
               <button @click="openAddModal(day)" class="text-blue-400 hover:text-blue-300 font-bold text-2xl leading-none rounded-full w-8 h-8 flex items-center justify-center bg-gray-700 hover:bg-gray-600">+</button>
@@ -210,4 +204,3 @@ const availableTemplatesForSelectedDay = computed(() => {
     </div>
   </div>
 </template>
-

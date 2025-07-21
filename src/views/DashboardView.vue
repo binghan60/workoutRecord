@@ -18,24 +18,23 @@ const exercisesWithSufficientData = computed(() => {
 </script>
 
 <template>
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+  <div class="grid grid-cols-1 lg:grid-cols-2">
     <!-- 左欄：整體訓練量圖表 -->
-    <div class="bg-gray-800 p-6 rounded-lg shadow-lg col-span-2">
+    <div class="p-4 col-span-2">
       <h2 class="text-2xl font-semibold mb-4 text-cyan-400">整體訓練量</h2>
       <OverallWorkoutChart />
     </div>
     <!-- 右欄：各動作歷史趨勢 (兩欄佈局) -->
 
-    <div class="bg-gray-800 p-6 rounded-lg shadow-lg col-span-2">
-      <h2 class="text-2xl font-semibold mb-4 text-cyan-400">各動作歷史趨勢</h2>
+    <div class="col-span-2">
+      <h2 class="p-4 text-2xl font-semibold mb-4 text-cyan-400">各動作歷史趨勢</h2>
       <div v-if="exercisesWithSufficientData.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-8 col-span-2">
         <div v-for="exercise in exercisesWithSufficientData" :key="exercise.id">
           <ProgressChart :exercise-name="exercise.name" />
         </div>
       </div>
-
       <div v-else class="col-span-2 text-center text-gray-400 py-10 bg-gray-800 rounded-lg shadow-lg">
-        <p>目前沒有足夠訓練紀錄的動作可以顯示趨勢圖��</p>
+        <p>沒有足夠訓練紀錄的動作可以顯示趨勢圖</p>
         <p>請先新增動作並記錄至少兩次訓練！</p>
       </div>
     </div>

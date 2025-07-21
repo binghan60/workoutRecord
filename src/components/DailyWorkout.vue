@@ -40,32 +40,36 @@ const currentExercise = computed(() => currentExercises.value[currentExerciseInd
 const isWatcherReady = ref(false)
 
 // --- Watchers ---
-watch(currentExercises, async (newExercises, oldExercises) => {
-  // This watcher should only run after the initial values have been loaded.
-  if (!isWatcherReady.value) {
-    // The first time this runs with items, we consider the initial load complete.
-    if (newExercises.length > 0) {
-      isWatcherReady.value = true
+watch(
+  currentExercises,
+  async (newExercises, oldExercises) => {
+    // This watcher should only run after the initial values have been loaded.
+    if (!isWatcherReady.value) {
+      // The first time this runs with items, we consider the initial load complete.
+      if (newExercises.length > 0) {
+        isWatcherReady.value = true
+      }
+      return
     }
-    return
-  }
 
-  // Ensure oldExercises is valid before comparing
-  if (!oldExercises) return
+    // Ensure oldExercises is valid before comparing
+    if (!oldExercises) return
 
-  // --- Handle Exercise Addition ---
-  if (newExercises.length > oldExercises.length) {
-    await nextTick()
-    currentExerciseIndex.value = newExercises.length - 1
-  }
-  // --- Handle Exercise Removal ---
-  else if (newExercises.length < oldExercises.length) {
-    await nextTick()
-    if (currentExerciseIndex.value >= newExercises.length) {
-      currentExerciseIndex.value = Math.max(0, newExercises.length - 1)
+    // --- Handle Exercise Addition ---
+    if (newExercises.length > oldExercises.length) {
+      await nextTick()
+      currentExerciseIndex.value = newExercises.length - 1
     }
-  }
-}, { deep: true }) // Use deep watch to be more robust
+    // --- Handle Exercise Removal ---
+    else if (newExercises.length < oldExercises.length) {
+      await nextTick()
+      if (currentExerciseIndex.value >= newExercises.length) {
+        currentExerciseIndex.value = Math.max(0, newExercises.length - 1)
+      }
+    }
+  },
+  { deep: true },
+) // Use deep watch to be more robust
 
 // --- Lifecycle Hooks ---
 onMounted(() => {
@@ -225,13 +229,17 @@ const handleSubmit = (values) => {
 </script>
 
 <template>
-  <div class="flex flex-col h-full bg-gray-900">
+  <div class="flex flex-col h-full">
     <!-- Rest Timer Overlay -->
     <div v-if="isResting" class="fixed inset-0 bg-black/80 flex flex-col items-center justify-center z-50">
       <div class="text-center">
         <p class="text-4xl font-bold text-gray-400 mb-4">組間休息</p>
         <p class="text-9xl font-mono font-bold text-white">
-          {{ Math.floor(restTimeRemaining / 60).toString().padStart(2, '0') }}:{{ (restTimeRemaining % 60).toString().padStart(2, '0') }}
+          {{
+            Math.floor(restTimeRemaining / 60)
+              .toString()
+              .padStart(2, '0')
+          }}:{{ (restTimeRemaining % 60).toString().padStart(2, '0') }}
         </p>
         <div class="mt-6 flex justify-center gap-x-4">
           <button @click="addRestTime(10)" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md">+10s</button>
@@ -255,14 +263,9 @@ const handleSubmit = (values) => {
         </div>
 
         <!-- Main Content -->
-        <div v-else class="flex-grow p-2 sm:p-4 overflow-y-auto relative">
+        <div v-else class="flex-grow overflow-y-auto relative">
           <!-- Use v-for and v-show to keep component state alive -->
-          <div
-            v-for="(field, index) in fields"
-            :key="field.key"
-            v-show="index === currentExerciseIndex"
-            class="absolute top-0 left-0 w-full h-full"
-          >
+          <div v-for="(field, index) in fields" :key="field.key" v-show="index === currentExerciseIndex" class="absolute top-0 left-0 w-full h-full p-4">
             <!-- Exercise Header -->
             <div class="flex items-center justify-between mb-4">
               <button @click="changeExercise(-1)" :disabled="currentExerciseIndex === 0" type="button" class="p-2 text-gray-400 hover:text-white disabled:opacity-30">
@@ -276,7 +279,7 @@ const handleSubmit = (values) => {
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
               </button>
             </div>
-            
+
             <!-- Delete Button -->
             <div class="text-center mb-4">
               <button @click="removeExercise(remove)" type="button" class="inline-flex items-center gap-x-1.5 text-sm text-red-500 hover:text-red-400 disabled:opacity-50" :disabled="fields.length === 0">
@@ -288,18 +291,20 @@ const handleSubmit = (values) => {
             <!-- Sets List -->
             <div class="space-y-3">
               <FieldArray :name="`exercises[${index}].sets`" v-slot="{ fields: setFields, push: pushSet, remove: removeSet }">
-                <WorkoutSetRow
-                  v-for="(setField, setIndex) in setFields"
-                  :key="setField.key"
-                  :set-index="setIndex"
-                  :ex-index="index"
-                  @complete-set="completeSet(index, setIndex)"
-                />
-                <div class="flex justify-center gap-x-4 mt-4">
-                  <button @click="() => {
-                    const lastSet = setFields.length > 0 ? setFields[setFields.length - 1].value : { reps: 10, weight: 10 };
-                    pushSet({ ...lastSet, isCompleted: false });
-                  }" type="button" class="text-sm text-blue-400 hover:text-blue-300 bg-gray-700/80 px-4 py-2 rounded-md">+ 新增一組</button>
+                <WorkoutSetRow v-for="(setField, setIndex) in setFields" :key="setField.key" :set-index="setIndex" :ex-index="index" @complete-set="completeSet(index, setIndex)" />
+                <div class="flex justify-center gap-x-4 pb-4">
+                  <button
+                    @click="
+                      () => {
+                        const lastSet = setFields.length > 0 ? setFields[setFields.length - 1].value : { reps: 10, weight: 10 }
+                        pushSet({ ...lastSet, isCompleted: false })
+                      }
+                    "
+                    type="button"
+                    class="text-sm text-blue-400 hover:text-blue-300 bg-gray-700/80 px-4 py-2 rounded-md"
+                  >
+                    + 新增一組
+                  </button>
                   <button @click="removeSet(setFields.length - 1)" :disabled="setFields.length <= 1" type="button" class="text-sm text-red-400 hover:text-red-300 disabled:opacity-50 bg-gray-700/80 px-4 py-2 rounded-md">- 移除最後一組</button>
                 </div>
               </FieldArray>
@@ -309,7 +314,7 @@ const handleSubmit = (values) => {
 
         <!-- Fixed Footer Actions -->
         <div class="flex-shrink-0 bg-gray-800/90 backdrop-blur-sm p-2 sm:p-4 border-t border-gray-700">
-           <div class="flex items-center gap-2 mb-3">
+          <div class="flex items-center gap-2 mb-3">
             <select v-model="selectedExerciseToAdd" class="flex-grow bg-gray-700 border-gray-600 rounded-md p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option disabled value="">-- 手動新增動作 --</option>
               <optgroup v-for="(group, groupName) in groupedExercises" :key="groupName" :label="groupName">
@@ -318,9 +323,7 @@ const handleSubmit = (values) => {
             </select>
             <button @click="addExerciseToWorkout(push)" type="button" class="bg-blue-600 hover:bg-blue-700 text-white font-bold p-3 rounded-md aspect-square flex-shrink-0">+</button>
           </div>
-          <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 sm:py-4 rounded-md text-lg" :disabled="fields.length === 0">
-            完成並儲存訓練
-          </button>
+          <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 sm:py-4 rounded-md text-lg" :disabled="fields.length === 0">完成並儲存訓練</button>
         </div>
       </FieldArray>
     </Form>

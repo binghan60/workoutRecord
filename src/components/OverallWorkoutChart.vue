@@ -82,7 +82,6 @@ const updateChart = async () => {
     chartInstance.destroy()
     chartInstance = null
   }
-  console.log(chartData.value)
   if (!chartData.value || chartData.value.data.length === 0) {
     return
   }
@@ -176,12 +175,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="bg-gray-800 p-6 rounded-lg shadow-lg mb-8">
+  <div class="rounded-lg">
     <div v-if="chartData && chartData.data.length > 0">
-      <div ref="chartContainer" style="height: 400px; width: 100%"></div>
+      <div ref="chartContainer" class="h-72 md:h-96 w-full"></div>
     </div>
     <div v-else class="text-center text-gray-400 py-10">
-      <p>目前沒有足夠的訓練紀錄來繪製每月訓練次數圖表。</p>
+      <p>資料不足繪製每月訓練次數圖表</p>
       <p>請增加更多訓練紀錄！</p>
     </div>
   </div>

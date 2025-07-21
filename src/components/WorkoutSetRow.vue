@@ -54,19 +54,19 @@ const adjustWeight = (amount) => {
   <!-- The component will only render when isCompleted has a value, preventing race conditions -->
   <div
     v-if="isCompleted !== undefined"
-    class="grid grid-cols-12 gap-2 items-center p-2 rounded-lg"
+    class="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center p-2 rounded-lg"
     :class="{
       'bg-green-800/50 border-l-4 border-green-400': isCompleted,
       'bg-gray-700': !isCompleted,
     }"
   >
     <!-- Set Number -->
-    <div class="col-span-1 text-center">
+    <div class="col-span-1 sm:col-span-1 text-center">
       <span class="text-lg font-bold text-gray-300">{{ setIndex + 1 }}</span>
     </div>
 
     <!-- Reps Input -->
-    <div class="col-span-3">
+    <div class="col-span-1 sm:col-span-3">
       <Field
         :name="`exercises[${exIndex}].sets[${setIndex}].reps`"
         type="number"
@@ -77,7 +77,7 @@ const adjustWeight = (amount) => {
     </div>
 
     <!-- Weight Input with Adjust Buttons -->
-    <div class="col-span-5 relative">
+    <div class="col-span-1 sm:col-span-5 relative">
       <Field
         :name="`exercises[${exIndex}].sets[${setIndex}].weight`"
         type="number"
@@ -97,7 +97,7 @@ const adjustWeight = (amount) => {
     </div>
 
     <!-- Action Button -->
-    <div class="col-span-3">
+    <div class="col-span-1 sm:col-span-3">
       <button
         @click="handleComplete"
         type="button"

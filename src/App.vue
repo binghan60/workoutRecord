@@ -7,7 +7,7 @@ import MobileNavBar from '@/components/MobileNavBar.vue'
 
 <template>
   <div id="app-shell" class="flex flex-col h-screen bg-gray-900 text-white font-sans">
-    <main class="flex-grow overflow-y-auto pb-20 sm:pb-4">
+    <main class="flex-grow overflow-y-auto pb-16 sm:pb-4">
       <RouterView v-slot="{ Component }">
         <transition name="fade" mode="out-in">
           <component :is="Component" />

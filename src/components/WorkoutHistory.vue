@@ -41,14 +41,18 @@ const confirmDeleteWorkout = (workoutId) => {
 </script>
 
 <template>
-  <div class="mx-auto">
-    <div v-if="workoutStore.workouts.length === 0" class="text-center text-gray-400 bg-gray-800 p-6 rounded-lg">
-      <p class="text-lg">目前沒有任何訓練紀錄。</p>
-      <p class="mt-2">立即開始記錄你的第一次訓練吧！</p>
+  <div class="mx-auto h-full p-4 mb-30">
+    <h2 class="text-2xl font-semibold mb-4 text-white border-b-2 border-gray-700 pb-2">訓練紀錄</h2>
+
+    <div v-if="workoutStore.workouts.length === 0" class="h-full flex flex-col items-center justify-center text-center text-gray-400 p-6 rounded-lg">
+      <div>
+        <p class="text-lg">目前沒有任何訓練紀錄。</p>
+        <p class="mt-2">立即開始記錄你的第一次訓練吧！</p>
+      </div>
     </div>
     <div v-else>
       <div class="space-y-8">
-        <div v-for="workout in workouts" :key="workout.id" class="bg-gray-800 p-4 sm:p-6 rounded-lg shadow-lg">
+        <div v-for="workout in workouts" :key="workout.id" class="sm:p-6 rounded-lg shadow-lg">
           <div class="flex justify-between items-start mb-4 border-b border-gray-700 pb-3">
             <div>
               <h2 class="text-2xl font-bold text-white mb-1">{{ workout.name }}</h2>
@@ -69,7 +73,7 @@ const confirmDeleteWorkout = (workoutId) => {
               </div>
 
               <div class="overflow-x-auto">
-                <table class="w-full text-center bg-gray-700 rounded-md overflow-hidden">
+                <table class="min-w-full text-center bg-gray-700 rounded-md overflow-hidden">
                   <thead class="bg-gray-900/50 text-gray-300 text-sm">
                     <tr>
                       <th class="p-2 font-semibold">組</th>

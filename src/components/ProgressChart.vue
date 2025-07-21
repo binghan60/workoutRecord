@@ -24,7 +24,7 @@ const workoutStore = useWorkoutStore()
 const darkThemeOptions = {
   colors: ['#22d3ee', '#a78bfa', '#f87171', '#4ade80', '#facc15', '#fb923c'],
   chart: {
-    backgroundColor: '#1f2937',
+    backgroundColor: 'transparent',
     style: { fontFamily: 'sans-serif' },
     animation: false, // 禁用動畫以避免潛在問題
   },
@@ -320,10 +320,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="max-w-6xl mx-auto bg-gray-800 p-6 rounded-lg shadow-xl">
+  <div class="max-w-6xl mx-auto p-4 rounded-lg">
     <div v-if="chartData && chartData.dates.length > 1">
-      <div ref="volumeChartContainer" class="mb-8" style="height: 400px; width: 100%"></div>
-      <div ref="strengthChartContainer" style="height: 400px; width: 100%"></div>
+      <div ref="volumeChartContainer" class="mb-8 h-72 md:h-96 w-full"></div>
+      <div ref="strengthChartContainer" class="h-72 md:h-96 w-full"></div>
     </div>
 
     <div v-else class="text-center text-gray-400 py-10">
