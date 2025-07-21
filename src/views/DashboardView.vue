@@ -33,7 +33,7 @@ const exercisesWithSufficientData = computed(() => {
           <ProgressChart :exercise-name="exercise.name" />
         </div>
       </div>
-      <div v-else class="col-span-2 text-center text-gray-400 py-10 bg-gray-800 rounded-lg shadow-lg">
+      <div v-else class="col-span-2 text-center text-gray-400 py-10 rounded-lg shadow-lg">
         <p>沒有足夠訓練紀錄的動作可以顯示趨勢圖</p>
         <p>請先新增動作並記錄至少兩次訓練！</p>
       </div>

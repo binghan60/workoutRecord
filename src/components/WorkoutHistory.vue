@@ -79,7 +79,7 @@ const confirmDeleteWorkout = (workoutId) => {
                       <th class="p-2 font-semibold">組</th>
                       <th class="p-2 font-semibold">重量(kg)</th>
                       <th class="p-2 font-semibold">次數</th>
-                      <th class="p-2 font-semibold">休息(s)</th>
+                      <th class="p-2 font-semibold">實際休息(s)</th>
                     </tr>
                   </thead>
                   <tbody class="text-gray-300">
@@ -87,8 +87,7 @@ const confirmDeleteWorkout = (workoutId) => {
                       <td class="p-2">{{ setIndex + 1 }}</td>
                       <td class="p-2">{{ set.weight }}</td>
                       <td class="p-2">{{ set.reps }}</td>
-                      <!-- Display actualRestTime if available, otherwise N/A -->
-                      <td class="p-2 text-gray-400">{{ set.actualRestTime || 'N/A' }}</td>
+                      <td class="p-2 text-gray-400">{{ set.actualRestTime ?? 'N/A' }}</td>
                     </tr>
                   </tbody>
                 </table>

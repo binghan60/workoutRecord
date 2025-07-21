@@ -19,7 +19,6 @@ const router = useRouter()
 
 // --- Component State ---
 const formRef = ref(null)
-// const formKey = ref(0) // REMOVED
 const todayWorkoutPlan = ref([])
 const isWorkoutLoaded = ref(false)
 const selectedExerciseToAdd = ref('')
@@ -29,6 +28,8 @@ const currentExerciseIndex = ref(0)
 const isResting = ref(false)
 const restTimeRemaining = ref(0)
 const restTimerInterval = ref(null)
+const restStartTime = ref(null)
+const lastCompletedSetInfo = ref(null)
 
 // --- Computed Properties ---
 const allExercises = computed(() => exerciseStore.allExercises)
@@ -37,31 +38,30 @@ const daysOfWeek = ['星期日', '星期一', '星期二', '星期三', '星期�
 const currentExercises = computed(() => formRef.value?.values?.exercises || [])
 const currentExercise = computed(() => currentExercises.value[currentExerciseIndex.value] || null)
 
+const allSetsCompleted = computed(() => {
+  if (!currentExercise.value || !currentExercise.value.sets) {
+    return false
+  }
+  return currentExercise.value.sets.every((set) => set.isCompleted)
+})
+
 const isWatcherReady = ref(false)
 
 // --- Watchers ---
 watch(
   currentExercises,
   async (newExercises, oldExercises) => {
-    // This watcher should only run after the initial values have been loaded.
     if (!isWatcherReady.value) {
-      // The first time this runs with items, we consider the initial load complete.
       if (newExercises.length > 0) {
         isWatcherReady.value = true
       }
       return
     }
-
-    // Ensure oldExercises is valid before comparing
     if (!oldExercises) return
-
-    // --- Handle Exercise Addition ---
     if (newExercises.length > oldExercises.length) {
       await nextTick()
       currentExerciseIndex.value = newExercises.length - 1
-    }
-    // --- Handle Exercise Removal ---
-    else if (newExercises.length < oldExercises.length) {
+    } else if (newExercises.length < oldExercises.length) {
       await nextTick()
       if (currentExerciseIndex.value >= newExercises.length) {
         currentExerciseIndex.value = Math.max(0, newExercises.length - 1)
@@ -69,7 +69,7 @@ watch(
     }
   },
   { deep: true },
-) // Use deep watch to be more robust
+)
 
 // --- Lifecycle Hooks ---
 onMounted(() => {
@@ -95,18 +95,17 @@ const loadDailyWorkout = () => {
         templateName: template.name,
         exercises: template.exercises.map((ex) => ({
           ...ex,
-          restTime: ex.restTime || 60,
+          restTime: ex.restTime ?? 60,
           sets: Array.from({ length: ex.sets || 1 }, () => ({
             reps: ex.reps || '',
             weight: ex.weight || '',
             isCompleted: false,
+            actualRestTime: null,
           })),
         })),
       })
     }
   })
-
-  // formKey.value++ // REMOVED
   isWorkoutLoaded.value = true
 }
 
@@ -116,7 +115,7 @@ const getInitialValues = computed(() => {
     plan.exercises.forEach((ex) => {
       initialExercises.push({
         name: ex.name,
-        restTime: ex.restTime || 60,
+        restTime: ex.restTime ?? 60,
         sets: ex.sets.map((set) => ({ ...set })),
       })
     })
@@ -135,14 +134,16 @@ const completeSet = (exIndex, setIndex) => {
   const fieldName = `exercises[${exIndex}].sets[${setIndex}].isCompleted`
   formRef.value.setFieldValue(fieldName, true)
 
+  lastCompletedSetInfo.value = { exIndex, setIndex }
   const exercise = currentExercises.value[exIndex]
   startRestTimer(exercise.restTime)
 }
 
 const startRestTimer = (duration) => {
-  stopRestTimer()
+  stopRestTimer(false)
   isResting.value = true
   restTimeRemaining.value = duration
+  restStartTime.value = Date.now()
   restTimerInterval.value = setInterval(() => {
     restTimeRemaining.value--
     if (restTimeRemaining.value <= 0) {
@@ -151,10 +152,21 @@ const startRestTimer = (duration) => {
   }, 1000)
 }
 
-const stopRestTimer = () => {
+const stopRestTimer = (recordTime = true) => {
   clearInterval(restTimerInterval.value)
   restTimerInterval.value = null
   isResting.value = false
+
+  if (recordTime && lastCompletedSetInfo.value && restStartTime.value) {
+    const elapsedSeconds = Math.round((Date.now() - restStartTime.value) / 1000)
+    const { exIndex, setIndex } = lastCompletedSetInfo.value
+    const fieldName = `exercises[${exIndex}].sets[${setIndex}].actualRestTime`
+    formRef.value.setFieldValue(fieldName, elapsedSeconds)
+
+    // BUG FIX: Reset context info ONLY after it has been used for recording.
+    restStartTime.value = null
+    lastCompletedSetInfo.value = null
+  }
 }
 
 const addRestTime = (seconds) => {
@@ -162,6 +174,7 @@ const addRestTime = (seconds) => {
 }
 
 const changeExercise = (direction) => {
+  stopRestTimer(false)
   const newIndex = currentExerciseIndex.value + direction
   if (newIndex >= 0 && newIndex < currentExercises.value.length) {
     currentExerciseIndex.value = newIndex
@@ -189,7 +202,7 @@ const addExerciseToWorkout = (push) => {
     push({
       name: exercise.name,
       restTime: 60,
-      sets: [{ reps: 10, weight: 10, isCompleted: false }],
+      sets: [{ reps: 10, weight: 10, isCompleted: false, actualRestTime: null }],
     })
     selectedExerciseToAdd.value = ''
   }
@@ -202,24 +215,40 @@ const handleSubmit = (values) => {
     return
   }
 
-  // 嚴格過濾：只保留使用者點擊完成 (isCompleted) 且實際填寫過 (reps > 0 且 weight >= 0) 的組
-  const newWorkout = {
-    name: workoutName,
-    exercises: values.exercises
-      .map((ex) => {
-        const completedSets = ex.sets.filter((s) => {
-          const reps = parseFloat(s.reps)
-          const weight = parseFloat(s.weight)
-          return s.isCompleted && !isNaN(reps) && reps > 0 && !isNaN(weight) && weight >= 0
+  const processedExercises = values.exercises
+    .map((exercise) => {
+      const validSets = exercise.sets
+        .filter((set) => {
+          const reps = parseFloat(set.reps)
+          const weight = parseFloat(set.weight)
+          return set.isCompleted && !isNaN(reps) && reps > 0 && !isNaN(weight) && weight >= 0
         })
-        return { ...ex, sets: completedSets }
-      })
-      .filter((ex) => ex.sets.length > 0), // 只保留至少有一組有效訓練的動作
-  }
+        .map((set) => ({
+          reps: set.reps,
+          weight: set.weight,
+          isCompleted: set.isCompleted,
+          actualRestTime: set.actualRestTime,
+        }))
 
-  if (newWorkout.exercises.length === 0) {
+      if (validSets.length > 0) {
+        return {
+          name: exercise.name,
+          restTime: exercise.restTime,
+          sets: validSets,
+        }
+      }
+      return null
+    })
+    .filter(Boolean)
+
+  if (processedExercises.length === 0) {
     toast.warning('請至少「完成」一組有效的訓練 (包含次數和重量)。')
     return
+  }
+
+  const newWorkout = {
+    name: workoutName,
+    exercises: processedExercises,
   }
 
   workoutStore.addWorkout(newWorkout)
@@ -245,7 +274,7 @@ const handleSubmit = (values) => {
           <button @click="addRestTime(10)" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md">+10s</button>
           <button @click="addRestTime(30)" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md">+30s</button>
         </div>
-        <button @click="stopRestTimer" class="mt-8 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-md text-lg">跳過休息</button>
+        <button @click="stopRestTimer()" class="mt-8 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-md text-lg">跳過休息</button>
       </div>
     </div>
 
@@ -264,7 +293,6 @@ const handleSubmit = (values) => {
 
         <!-- Main Content -->
         <div v-else class="flex-grow overflow-y-auto relative">
-          <!-- Use v-for and v-show to keep component state alive -->
           <div v-for="(field, index) in fields" :key="field.key" v-show="index === currentExerciseIndex" class="absolute top-0 left-0 w-full h-full p-4">
             <!-- Exercise Header -->
             <div class="flex items-center justify-between mb-4">
@@ -292,20 +320,25 @@ const handleSubmit = (values) => {
             <div class="space-y-3">
               <FieldArray :name="`exercises[${index}].sets`" v-slot="{ fields: setFields, push: pushSet, remove: removeSet }">
                 <WorkoutSetRow v-for="(setField, setIndex) in setFields" :key="setField.key" :set-index="setIndex" :ex-index="index" @complete-set="completeSet(index, setIndex)" />
-                <div class="flex justify-center gap-x-4 pb-4">
-                  <button
-                    @click="
-                      () => {
-                        const lastSet = setFields.length > 0 ? setFields[setFields.length - 1].value : { reps: 10, weight: 10 }
-                        pushSet({ ...lastSet, isCompleted: false })
-                      }
-                    "
-                    type="button"
-                    class="text-sm text-blue-400 hover:text-blue-300 bg-gray-700/80 px-4 py-2 rounded-md"
-                  >
-                    + 新增一組
-                  </button>
-                  <button @click="removeSet(setFields.length - 1)" :disabled="setFields.length <= 1" type="button" class="text-sm text-red-400 hover:text-red-300 disabled:opacity-50 bg-gray-700/80 px-4 py-2 rounded-md">- 移除最後一組</button>
+                <div class="space-y-3 pt-2 pb-4">
+                  <div class="flex justify-center gap-x-4">
+                    <button
+                      @click="
+                        () => {
+                          const lastSet = setFields.length > 0 ? setFields[setFields.length - 1].value : { reps: 10, weight: 10 }
+                          pushSet({ ...lastSet, isCompleted: false, actualRestTime: null })
+                        }
+                      "
+                      type="button"
+                      class="text-sm text-blue-400 hover:text-blue-300 bg-gray-700/80 px-4 py-2 rounded-md"
+                    >
+                      + 新增一組
+                    </button>
+                    <button @click="removeSet(setFields.length - 1)" :disabled="setFields.length <= 1" type="button" class="text-sm text-red-400 hover:text-red-300 disabled:opacity-50 bg-gray-700/80 px-4 py-2 rounded-md">- 移除最後一組</button>
+                  </div>
+                  <div v-if="allSetsCompleted" class="flex justify-center">
+                    <button @click="changeExercise(1)" :disabled="currentExerciseIndex === fields.length - 1" type="button" class="w-full max-w-md bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-md transition-all duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed">下一動作</button>
+                  </div>
                 </div>
               </FieldArray>
             </div>

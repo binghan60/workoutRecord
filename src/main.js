@@ -45,8 +45,8 @@ configure({
 })
 
 const toastOptions = {
-  position: 'bottom-center',
-  timeout: 1500,
+  position: 'top-right',
+  timeout: 1000,
   closeOnClick: true,
   pauseOnFocusLoss: false,
   pauseOnHover: false,
