@@ -282,7 +282,7 @@ const handleSubmit = (values) => {
       <p>正在載入今日訓練計畫...</p>
     </div>
 
-    <Form v-else ref="formRef" @submit="handleSubmit" :initial-values="getInitialValues" class="flex flex-col flex-grow">
+    <Form v-else ref="formRef" @submit="handleSubmit" :initial-values="getInitialValues" class="flex flex-col flex-grow overflow-y-auto">
       <Field name="workoutName" type="hidden" />
 
       <FieldArray name="exercises" v-slot="{ fields, push, remove }">
@@ -292,8 +292,8 @@ const handleSubmit = (values) => {
         </div>
 
         <!-- Main Content -->
-        <div v-else class="flex-grow overflow-y-auto relative">
-          <div v-for="(field, index) in fields" :key="field.key" v-show="index === currentExerciseIndex" class="absolute top-0 left-0 w-full h-full p-4">
+        <div v-else class="flex-grow">
+          <div v-for="(field, index) in fields" :key="field.key" v-show="index === currentExerciseIndex" class="p-4">
             <!-- Exercise Header -->
             <div class="flex items-center justify-between mb-4">
               <button @click="changeExercise(-1)" :disabled="currentExerciseIndex === 0" type="button" class="p-2 text-gray-400 hover:text-white disabled:opacity-30">
@@ -345,8 +345,8 @@ const handleSubmit = (values) => {
           </div>
         </div>
 
-        <!-- Fixed Footer Actions -->
-        <div class="flex-shrink-0 bg-gray-800/90 backdrop-blur-sm p-2 sm:p-4 border-t border-gray-700">
+        <!-- Natural Footer -->
+        <div class="bg-gray-800/90 backdrop-blur-sm p-2 sm:p-4 border-t border-gray-700 mt-auto">
           <div class="flex items-center gap-2 mb-3">
             <select v-model="selectedExerciseToAdd" class="flex-grow bg-gray-700 border-gray-600 rounded-md p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option disabled value="">-- 手動新增動作 --</option>
