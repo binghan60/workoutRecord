@@ -47,7 +47,7 @@ const confirmDeleteExercise = (exercise) => {
 
     <!-- 動作列表 -->
     <div class="space-y-6">
-      <h2 class="text-2xl font-semibold mb-4 text-white border-b-2 border-gray-700 pb-2">動作庫</h2>
+      <h2 class="text-2xl font-semibold mb-4 text-white border-b-2 border-gray-700 pb-2">我的動作清單</h2>
       <template v-if="Object.keys(exerciseStore.groupedExercises).length > 0">
         <div v-for="(group, groupName) in exerciseStore.groupedExercises" :key="groupName">
           <h3 @click="toggleGroup(groupName)" :class="['text-lg font-bold flex items-center cursor-pointer select-none px-4 py-2 rounded-t-md transition-all', getMuscleGroupColor(groupName)]">

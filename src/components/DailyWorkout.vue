@@ -306,11 +306,11 @@ const confirmSubmission = (values) => {
       <p>正在載入今日訓練計畫...</p>
     </div>
 
-    <Form v-else ref="formRef" @submit="confirmSubmission" :initial-values="getInitialValues" class="flex flex-col min-h-screen">
+    <Form v-else ref="formRef" @submit="confirmSubmission" :initial-values="getInitialValues" class="flex flex-col">
       <Field name="workoutName" type="hidden" />
 
       <FieldArray name="exercises" v-slot="{ fields, push, remove }">
-        <div v-if="fields.length === 0" class="flex-grow flex flex-col items-center justify-center text-center text-gray-400 p-4">
+        <div v-if="fields.length === 0" class="flex-grow flex flex-col items-center justify-center text-center text-gray-400 p-4 min-h-[calc(100vh-65px)]">
           <p>今天沒有預定的訓練。</p>
           <p class="mt-2">請從下方選擇並新增您的第一個訓練動作！</p>
         </div>
@@ -366,8 +366,8 @@ const confirmSubmission = (values) => {
                       </button>
                       <button @click="removeSet(setFields.length - 1)" :disabled="setFields.length <= 1" type="button" class="text-sm text-red-400 hover:text-red-300 disabled:opacity-50 bg-gray-700/80 px-4 py-2 rounded-md">- 移除最後一組</button>
                     </div>
-                    <div v-if="allSetsCompleted" class="flex justify-center">
-                      <button @click="changeExercise(1)" :disabled="currentExerciseIndex === fields.length - 1" type="button" class="w-full max-w-md bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-md transition-all duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed">下一動作</button>
+                    <div v-if="allSetsCompleted && currentExerciseIndex != fields.length - 1" class="flex justify-center">
+                      <button @click="changeExercise(1)" type="button" class="w-full max-w-md bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-md transition-all duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed">下一動作</button>
                     </div>
                   </div>
                 </FieldArray>
