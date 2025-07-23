@@ -1,24 +1,68 @@
+<template>
+  <div>
+    <!-- Add Template Dialog -->
+    <v-dialog v-model="isModalOpen" max-width="500px">
+      <v-card>
+        <v-card-title class="text-h5">新增課表到 {{ selectedDay }}</v-card-title>
+        <v-card-text>
+          <div v-if="availableTemplatesForSelectedDay.length > 0">
+            <v-list>
+              <v-list-item v-for="template in availableTemplatesForSelectedDay" :key="template.id" :title="template.name" @click="selectTemplate(template.id)"></v-list-item>
+            </v-list>
+          </div>
+          <div v-else class="text-center text-grey-darken-1 py-8">
+            <p>沒有其他可用的課表了。</p>
+            <p class="text-body-2 mt-1">所有課表都已經被加到這一天的排程中了。</p>
+          </div>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="blue-darken-1" text @click="isModalOpen = false">關閉</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Weekly Schedule Grid -->
+    <p class="text-center text-grey-darken-1 mb-6">點擊 <v-icon color="primary">mdi-plus-circle-outline</v-icon> 按鈕或從範本頁拖曳來新增訓練排程。</p>
+
+    <v-row>
+      <v-col v-for="day in templateStore.daysOfWeek" :key="day" cols="12" md="4" lg="3">
+        <v-card :variant="isToday(day) ? 'tonal' : 'elevated'" :color="isToday(day) ? 'primary' : undefined" min-height="250px" class="fill-height">
+          <v-card-title class="d-flex justify-space-between align-center">
+            <span>{{ day }}</span>
+            <v-btn icon variant="text" @click="openAddModal(day)">
+              <v-icon color="primary">mdi-plus</v-icon>
+            </v-btn>
+          </v-card-title>
+
+          <v-card-text>
+            <v-chip v-for="(templateId, index) in templateStore.schedule[day]" :key="templateId" closable @click:close="templateStore.removeTemplateFromSchedule(day, index)" label class="w-100 d-flex justify-space-between mb-2">
+              {{ templateStore.getTemplateById(templateId)?.name }}
+            </v-chip>
+            <div v-if="!templateStore.schedule[day] || templateStore.schedule[day].length === 0" class="text-center text-grey-darken-1 py-10">休息日</div>
+          </v-card-text>
+        </v-card>
+      </v-col>
+    </v-row>
+  </div>
+</template>
+
 <script setup>
 import { ref, computed } from 'vue'
 import { useTemplateStore } from '@/stores/template'
-import { useModalStore } from '@/stores/modal'
 import { VueDraggableNext } from 'vue-draggable-next'
 
 const templateStore = useTemplateStore()
-const modalStore = useModalStore()
 
-// --- 控制選擇課表的 Modal ---
 const isModalOpen = ref(false)
 const selectedDay = ref(null)
 
-// --- 判斷是否為今天 ---
 const isToday = (day) => {
   const today = new Date()
-  const dayIndex = templateStore.daysOfWeek.indexOf(day)
+  const dayIndex = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'].indexOf(day)
   return today.getDay() === dayIndex
 }
 
-// --- 拖曳邏輯 ---
 const handleDrop = (day, event) => {
   const templateId = event.dataTransfer.getData('templateId')
   if (templateId) {
@@ -26,7 +70,6 @@ const handleDrop = (day, event) => {
   }
 }
 
-// --- 按鈕新增邏輯 ---
 const openAddModal = (day) => {
   selectedDay.value = day
   isModalOpen.value = true
@@ -40,56 +83,9 @@ const selectTemplate = (templateId) => {
   selectedDay.value = null
 }
 
-// --- 計算屬性：過濾掉已在當天排程中的課表 ---
 const availableTemplatesForSelectedDay = computed(() => {
   if (!selectedDay.value) return []
   const scheduledIds = templateStore.schedule[selectedDay.value] || []
   return templateStore.templates.filter((t) => !scheduledIds.includes(t.id))
 })
-
-// --- 讓外部可以拖曳進來 ---
-const handleDragStart = (event, templateId) => {
-  event.dataTransfer.setData('templateId', templateId)
-}
 </script>
-
-<template>
-  <div>
-    <!-- Add Template Modal -->
-    <div v-if="isModalOpen" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="isModalOpen = false">
-      <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
-        <div class="p-6">
-          <h3 class="text-xl font-bold text-white text-center mb-4">新增課表到 {{ selectedDay }}</h3>
-          <div v-if="availableTemplatesForSelectedDay.length > 0" class="space-y-3 max-h-[60vh] overflow-y-auto">
-            <button v-for="template in availableTemplatesForSelectedDay" :key="template.id" @click="selectTemplate(template.id)" class="w-full text-left bg-gray-700 hover:bg-gray-600 text-white font-semibold p-4 rounded-lg transition-colors">
-              {{ template.name }}
-            </button>
-          </div>
-          <div v-else class="text-center text-gray-400 py-8">
-            <p>沒有其他可用的課表了。</p>
-            <p class="text-sm mt-1">所有課表都已經被加到這一天的排程中了。</p>
-          </div>
-          <button @click="isModalOpen = false" class="mt-6 w-full bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded">關閉</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 週課表排程 -->
-    <p class="text-center text-gray-400 mb-6 text-sm">點擊 <span class="text-blue-400 font-bold mx-1">+</span> 按鈕來新增訓練排程。</p>
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-      <div v-for="day in templateStore.daysOfWeek" :key="day" :class="[isToday(day) ? 'bg-gray-600' : 'bg-gray-800', 'p-4', 'rounded-lg', 'min-h-[200px]']" @dragover.prevent @drop="handleDrop(day, $event)">
-        <div class="flex justify-between items-center mb-4 border-b-2 border-gray-700 pb-2">
-          <h3 class="font-bold text-lg text-white">{{ day }}</h3>
-          <button @click="openAddModal(day)" class="text-blue-400 hover:text-blue-300 font-bold text-2xl leading-none rounded-full w-8 h-8 flex items-center justify-center bg-gray-700 hover:bg-gray-600">+</button>
-        </div>
-        <VueDraggableNext v-model="templateStore.schedule[day]" tag="div" class="space-y-3 h-full">
-          <div v-for="(templateId, index) in templateStore.schedule[day]" :key="templateId" class="bg-gray-700 p-3 rounded-lg shadow-md cursor-pointer flex justify-between items-center">
-            <span class="text-white font-semibold">{{ templateStore.getTemplateById(templateId)?.name }}</span>
-            <button @click="templateStore.removeTemplateFromSchedule(day, index)" class="text-gray-400 hover:text-red-500 text-xl">&times;</button>
-          </div>
-        </VueDraggableNext>
-        <div v-if="!templateStore.schedule[day] || templateStore.schedule[day].length === 0" class="text-center text-gray-500 pt-10">休息日</div>
-      </div>
-    </div>
-  </div>
-</template>

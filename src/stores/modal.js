@@ -7,6 +7,7 @@ export const useModalStore = defineStore('modal', () => {
   const message = ref('')
   const onConfirmCallback = ref(null)
   const isExerciseModalOpen = ref(false)
+  const isBodyMetricsModalOpen = ref(false) // Add this line
   const selectedExerciseId = ref(null)
 
   function showConfirmation(confirmTitle, confirmMessage, onConfirm) {
@@ -38,6 +39,16 @@ export const useModalStore = defineStore('modal', () => {
     isExerciseModalOpen.value = false
   }
 
+  function showBodyMetricsModal() {
+    // Add this function
+    isBodyMetricsModalOpen.value = true
+  }
+
+  function hideBodyMetricsModal() {
+    // Add this function
+    isBodyMetricsModalOpen.value = false
+  }
+
   return {
     isOpen,
     title,
@@ -48,6 +59,9 @@ export const useModalStore = defineStore('modal', () => {
     isExerciseModalOpen,
     showExerciseModal,
     hideExerciseModal,
+    isBodyMetricsModalOpen, // Add this line
+    showBodyMetricsModal, // Add this line
+    hideBodyMetricsModal, // Add this line
     selectedExerciseId,
   }
 })

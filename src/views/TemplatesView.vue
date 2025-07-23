@@ -1,9 +1,13 @@
+<template>
+  <v-container>
+    <v-row justify="center">
+      <v-col cols="12" md="11" lg="10">
+        <TemplateManager />
+      </v-col>
+    </v-row>
+  </v-container>
+</template>
+
 <script setup>
 import TemplateManager from '@/components/TemplateManager.vue'
 </script>
-
-<template>
-  <div class="p-4 sm:p-6 md:p-8">
-    <TemplateManager />
-  </div>
-</template>

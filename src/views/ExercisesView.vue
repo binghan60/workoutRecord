@@ -1,9 +1,13 @@
+<template>
+  <v-container>
+    <v-row justify="center">
+      <v-col cols="12" md="10" lg="8">
+        <ExerciseManager />
+      </v-col>
+    </v-row>
+  </v-container>
+</template>
+
 <script setup>
 import ExerciseManager from '@/components/ExerciseManager.vue'
 </script>
-
-<template>
-  <div class="p-4 sm:p-6 md:p-8">
-    <ExerciseManager />
-  </div>
-</template>

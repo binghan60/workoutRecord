@@ -1,5 +1,3 @@
-import './assets/main.css'
-
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import Highcharts from 'highcharts'
@@ -8,6 +6,7 @@ import App from './App.vue'
 import router from './router'
 import Toast, { useToast } from 'vue-toastification'
 import 'vue-toastification/dist/index.css'
+import vuetify from './plugins/vuetify'
 
 // VeeValidate 全域設定
 import { defineRule, configure } from 'vee-validate'
@@ -45,7 +44,7 @@ configure({
 })
 
 const toastOptions = {
-  position: 'top-right',
+  position: 'bottom-center',
   timeout: 1000,
   closeOnClick: true,
   pauseOnFocusLoss: false,
@@ -61,6 +60,8 @@ const toastOptions = {
 }
 
 const app = createApp(App)
+
+app.use(vuetify)
 app.use(Toast, toastOptions)
 app.config.globalProperties.$toast = useToast()
 
