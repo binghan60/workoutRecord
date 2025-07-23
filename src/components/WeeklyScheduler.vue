@@ -11,6 +11,13 @@ const modalStore = useModalStore()
 const isModalOpen = ref(false)
 const selectedDay = ref(null)
 
+// --- 判斷是否為今天 ---
+const isToday = (day) => {
+  const today = new Date()
+  const dayIndex = templateStore.daysOfWeek.indexOf(day)
+  return today.getDay() === dayIndex
+}
+
 // --- 拖曳邏輯 ---
 const handleDrop = (day, event) => {
   const templateId = event.dataTransfer.getData('templateId')
@@ -70,7 +77,7 @@ const handleDragStart = (event, templateId) => {
     <!-- 週課表排程 -->
     <p class="text-center text-gray-400 mb-6 text-sm">點擊 <span class="text-blue-400 font-bold mx-1">+</span> 按鈕來新增訓練排程。</p>
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-      <div v-for="day in templateStore.daysOfWeek" :key="day" class="bg-gray-800 p-4 rounded-lg min-h-[200px]" @dragover.prevent @drop="handleDrop(day, $event)">
+      <div v-for="day in templateStore.daysOfWeek" :key="day" :class="[isToday(day) ? 'bg-gray-600' : 'bg-gray-800', 'p-4', 'rounded-lg', 'min-h-[200px]']" @dragover.prevent @drop="handleDrop(day, $event)">
         <div class="flex justify-between items-center mb-4 border-b-2 border-gray-700 pb-2">
           <h3 class="font-bold text-lg text-white">{{ day }}</h3>
           <button @click="openAddModal(day)" class="text-blue-400 hover:text-blue-300 font-bold text-2xl leading-none rounded-full w-8 h-8 flex items-center justify-center bg-gray-700 hover:bg-gray-600">+</button>

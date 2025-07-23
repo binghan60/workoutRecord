@@ -21,7 +21,6 @@ const router = useRouter()
 const formRef = ref(null)
 const todayWorkoutPlan = ref([])
 const isWorkoutLoaded = ref(false)
-const selectedExerciseToAdd = ref('')
 
 // --- Task Flow State ---
 const currentExerciseIndex = ref(0)
@@ -33,7 +32,6 @@ const lastCompletedSetInfo = ref(null)
 
 // --- Computed Properties ---
 const allExercises = computed(() => exerciseStore.allExercises)
-const groupedExercises = computed(() => exerciseStore.groupedExercises)
 const daysOfWeek = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
 const currentExercises = computed(() => formRef.value?.values?.exercises || [])
 const currentExercise = computed(() => currentExercises.value[currentExerciseIndex.value] || null)
@@ -69,6 +67,16 @@ watch(
     }
   },
   { deep: true },
+)
+
+watch(
+  () => modalStore.selectedExerciseId,
+  (newExerciseId) => {
+    if (newExerciseId) {
+      addExerciseToWorkout(newExerciseId)
+      modalStore.selectedExerciseId = null // Reset after adding
+    }
+  },
 )
 
 // --- Lifecycle Hooks ---
@@ -192,23 +200,22 @@ const removeExercise = (remove) => {
 }
 
 // --- Form and Data Methods ---
-const addExerciseToWorkout = (push) => {
-  if (!selectedExerciseToAdd.value) {
-    toast.warning('請先選擇一個動作！')
-    return
-  }
-  const exercise = allExercises.value.find((ex) => ex.id === selectedExerciseToAdd.value)
+const addExerciseToWorkout = (exerciseId) => {
+  const exercise = allExercises.value.find((ex) => ex.id === exerciseId)
   if (exercise) {
-    push({
-      name: exercise.name,
-      restTime: 60,
-      sets: [{ reps: 10, weight: 10, isCompleted: false, actualRestTime: null }],
-    })
-    selectedExerciseToAdd.value = ''
+    const exercisesField = formRef.value.values.exercises
+    formRef.value.setFieldValue('exercises', [
+      ...exercisesField,
+      {
+        name: exercise.name,
+        restTime: 60,
+        sets: [{ reps: 10, weight: 10, isCompleted: false, actualRestTime: null }],
+      },
+    ])
   }
 }
 
-const handleSubmit = (values) => {
+const saveWorkout = (values) => {
   const workoutName = values.workoutName.trim()
   if (!workoutName) {
     toast.error('訓練課表名稱不能為空！')
@@ -241,11 +248,6 @@ const handleSubmit = (values) => {
     })
     .filter(Boolean)
 
-  if (processedExercises.length === 0) {
-    toast.warning('請至少「完成」一組有效的訓練 (包含次數和重量)。')
-    return
-  }
-
   const newWorkout = {
     name: workoutName,
     exercises: processedExercises,
@@ -255,10 +257,32 @@ const handleSubmit = (values) => {
   toast.success(`訓練 "${workoutName}" 已成功儲存！`)
   router.push('/history')
 }
+
+const confirmSubmission = (values) => {
+  if (values.exercises.length === 0) {
+    toast.warning('沒有可儲存的訓練。')
+    return
+  }
+
+  const hasCompletedSet = values.exercises.some((exercise) =>
+    exercise.sets.some((set) => {
+      const reps = parseFloat(set.reps)
+      const weight = parseFloat(set.weight)
+      return set.isCompleted && !isNaN(reps) && reps > 0 && !isNaN(weight) && weight >= 0
+    }),
+  )
+
+  if (!hasCompletedSet) {
+    toast.warning('請至少「完成」一組有效的訓練 (包含次數和重量)。')
+    return
+  }
+
+  modalStore.showConfirmation('完成並儲存訓練', '您確定要儲存本次的訓練紀錄嗎？', () => saveWorkout(values))
+}
 </script>
 
 <template>
-  <div class="flex flex-col h-full">
+  <div class="flex flex-col">
     <!-- Rest Timer Overlay -->
     <div v-if="isResting" class="fixed inset-0 bg-black/80 flex flex-col items-center justify-center z-50">
       <div class="text-center">
@@ -282,7 +306,7 @@ const handleSubmit = (values) => {
       <p>正在載入今日訓練計畫...</p>
     </div>
 
-    <Form v-else ref="formRef" @submit="handleSubmit" :initial-values="getInitialValues" class="flex flex-col flex-grow overflow-y-auto">
+    <Form v-else ref="formRef" @submit="confirmSubmission" :initial-values="getInitialValues" class="flex flex-col min-h-screen">
       <Field name="workoutName" type="hidden" />
 
       <FieldArray name="exercises" v-slot="{ fields, push, remove }">
@@ -291,72 +315,70 @@ const handleSubmit = (values) => {
           <p class="mt-2">請從下方選擇並新增您的第一個訓練動作！</p>
         </div>
 
-        <!-- Main Content -->
-        <div v-else class="flex-grow">
-          <div v-for="(field, index) in fields" :key="field.key" v-show="index === currentExerciseIndex" class="p-4">
-            <!-- Exercise Header -->
-            <div class="flex items-center justify-between mb-4">
-              <button @click="changeExercise(-1)" :disabled="currentExerciseIndex === 0" type="button" class="p-2 text-gray-400 hover:text-white disabled:opacity-30">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
-              </button>
-              <div class="text-center mx-2 flex-grow min-w-0">
-                <h2 class="text-2xl sm:text-3xl font-bold text-white truncate">{{ field.value.name }}</h2>
-                <p class="text-gray-400">{{ currentExerciseIndex + 1 }} / {{ fields.length }}</p>
-              </div>
-              <button @click="changeExercise(1)" :disabled="currentExerciseIndex === fields.length - 1" type="button" class="p-2 text-gray-400 hover:text-white disabled:opacity-30">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
-              </button>
-            </div>
-
-            <!-- Delete Button -->
-            <div class="text-center mb-4">
-              <button @click="removeExercise(remove)" type="button" class="inline-flex items-center gap-x-1.5 text-sm text-red-500 hover:text-red-400 disabled:opacity-50" :disabled="fields.length === 0">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg>
-                移除此動作
-              </button>
-            </div>
-
-            <!-- Sets List -->
-            <div class="space-y-3">
-              <FieldArray :name="`exercises[${index}].sets`" v-slot="{ fields: setFields, push: pushSet, remove: removeSet }">
-                <WorkoutSetRow v-for="(setField, setIndex) in setFields" :key="setField.key" :set-index="setIndex" :ex-index="index" @complete-set="completeSet(index, setIndex)" />
-                <div class="space-y-3 pt-2 pb-4">
-                  <div class="flex justify-center gap-x-4">
-                    <button
-                      @click="
-                        () => {
-                          const lastSet = setFields.length > 0 ? setFields[setFields.length - 1].value : { reps: 10, weight: 10 }
-                          pushSet({ ...lastSet, isCompleted: false, actualRestTime: null })
-                        }
-                      "
-                      type="button"
-                      class="text-sm text-blue-400 hover:text-blue-300 bg-gray-700/80 px-4 py-2 rounded-md"
-                    >
-                      + 新增一組
-                    </button>
-                    <button @click="removeSet(setFields.length - 1)" :disabled="setFields.length <= 1" type="button" class="text-sm text-red-400 hover:text-red-300 disabled:opacity-50 bg-gray-700/80 px-4 py-2 rounded-md">- 移除最後一組</button>
-                  </div>
-                  <div v-if="allSetsCompleted" class="flex justify-center">
-                    <button @click="changeExercise(1)" :disabled="currentExerciseIndex === fields.length - 1" type="button" class="w-full max-w-md bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-md transition-all duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed">下一動作</button>
-                  </div>
+        <!-- Main Content & Footer Wrapper -->
+        <div v-else class="flex flex-col flex-grow">
+          <!-- Scrollable Area -->
+          <div class="overflow-y-auto">
+            <div v-for="(field, index) in fields" :key="field.key" v-show="index === currentExerciseIndex" class="p-4">
+              <!-- Exercise Header -->
+              <div class="flex items-center justify-between mb-4">
+                <button @click="changeExercise(-1)" :disabled="currentExerciseIndex === 0" type="button" class="p-2 text-gray-400 hover:text-white disabled:opacity-30">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+                </button>
+                <div class="text-center mx-2 flex-grow min-w-0">
+                  <h2 class="text-2xl sm:text-3xl font-bold text-white truncate">{{ field.value.name }}</h2>
+                  <p class="text-gray-400">{{ currentExerciseIndex + 1 }} / {{ fields.length }}</p>
                 </div>
-              </FieldArray>
+                <button @click="changeExercise(1)" :disabled="currentExerciseIndex === fields.length - 1" type="button" class="p-2 text-gray-400 hover:text-white disabled:opacity-30">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                </button>
+              </div>
+
+              <!-- Action Buttons -->
+              <div class="flex justify-center items-center gap-x-4 mb-4">
+                <button @click="removeExercise(remove)" type="button" class="inline-flex items-center gap-x-1.5 text-sm text-red-500 hover:text-red-400 disabled:opacity-50" :disabled="fields.length === 0">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg>
+                  移除此動作
+                </button>
+                <button @click="modalStore.showExerciseModal" type="button" class="inline-flex items-center gap-x-1.5 text-sm text-blue-500 hover:text-blue-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" /></svg>
+                  新增動作
+                </button>
+              </div>
+
+              <!-- Sets List -->
+              <div class="space-y-3">
+                <FieldArray :name="`exercises[${index}].sets`" v-slot="{ fields: setFields, push: pushSet, remove: removeSet }">
+                  <WorkoutSetRow v-for="(setField, setIndex) in setFields" :key="setField.key" :set-index="setIndex" :ex-index="index" @complete-set="completeSet(index, setIndex)" />
+                  <div class="space-y-3">
+                    <div class="flex justify-center gap-x-4">
+                      <button
+                        @click="
+                          () => {
+                            const lastSet = setFields.length > 0 ? setFields[setFields.length - 1].value : { reps: 10, weight: 10 }
+                            pushSet({ ...lastSet, isCompleted: false, actualRestTime: null })
+                          }
+                        "
+                        type="button"
+                        class="text-sm text-blue-400 hover:text-blue-300 bg-gray-700/80 px-4 py-2 rounded-md"
+                      >
+                        + 新增一組
+                      </button>
+                      <button @click="removeSet(setFields.length - 1)" :disabled="setFields.length <= 1" type="button" class="text-sm text-red-400 hover:text-red-300 disabled:opacity-50 bg-gray-700/80 px-4 py-2 rounded-md">- 移除最後一組</button>
+                    </div>
+                    <div v-if="allSetsCompleted" class="flex justify-center">
+                      <button @click="changeExercise(1)" :disabled="currentExerciseIndex === fields.length - 1" type="button" class="w-full max-w-md bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-md transition-all duration-300 disabled:bg-gray-500 disabled:cursor-not-allowed">下一動作</button>
+                    </div>
+                  </div>
+                </FieldArray>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- Natural Footer -->
-        <div class="bg-gray-800/90 backdrop-blur-sm p-2 sm:p-4 border-t border-gray-700 mt-auto">
-          <div class="flex items-center gap-2 mb-3">
-            <select v-model="selectedExerciseToAdd" class="flex-grow bg-gray-700 border-gray-600 rounded-md p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option disabled value="">-- 手動新增動作 --</option>
-              <optgroup v-for="(group, groupName) in groupedExercises" :key="groupName" :label="groupName">
-                <option v-for="exercise in group" :key="exercise.id" :value="exercise.id">{{ exercise.name }}</option>
-              </optgroup>
-            </select>
-            <button @click="addExerciseToWorkout(push)" type="button" class="bg-blue-600 hover:bg-blue-700 text-white font-bold p-3 rounded-md aspect-square flex-shrink-0">+</button>
+          <!-- Footer -->
+          <div v-if="fields.length > 0 && currentExerciseIndex === fields.length - 1" class="p-4 flex-shrink-0">
+            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 sm:py-4 rounded-md text-lg" :disabled="fields.length === 0">完成並儲存訓練</button>
           </div>
-          <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 sm:py-4 rounded-md text-lg" :disabled="fields.length === 0">完成並儲存訓練</button>
         </div>
       </FieldArray>
     </Form>

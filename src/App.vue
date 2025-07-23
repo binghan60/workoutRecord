@@ -1,6 +1,7 @@
 <script setup>
 import { RouterLink, RouterView } from 'vue-router'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import ExerciseModal from '@/components/ExerciseModal.vue'
 import LoadingOverlay from '@/components/LoadingOverlay.vue'
 import MobileNavBar from '@/components/MobileNavBar.vue'
 </script>
@@ -16,6 +17,7 @@ import MobileNavBar from '@/components/MobileNavBar.vue'
     </main>
 
     <ConfirmModal />
+    <ExerciseModal />
     <LoadingOverlay />
     <MobileNavBar />
   </div>

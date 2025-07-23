@@ -6,6 +6,8 @@ export const useModalStore = defineStore('modal', () => {
   const title = ref('')
   const message = ref('')
   const onConfirmCallback = ref(null)
+  const isExerciseModalOpen = ref(false)
+  const selectedExerciseId = ref(null)
 
   function showConfirmation(confirmTitle, confirmMessage, onConfirm) {
     title.value = confirmTitle
@@ -28,5 +30,24 @@ export const useModalStore = defineStore('modal', () => {
     hideConfirmation()
   }
 
-  return { isOpen, title, message, showConfirmation, hideConfirmation, confirm }
+  function showExerciseModal() {
+    isExerciseModalOpen.value = true
+  }
+
+  function hideExerciseModal() {
+    isExerciseModalOpen.value = false
+  }
+
+  return {
+    isOpen,
+    title,
+    message,
+    showConfirmation,
+    hideConfirmation,
+    confirm,
+    isExerciseModalOpen,
+    showExerciseModal,
+    hideExerciseModal,
+    selectedExerciseId,
+  }
 })
