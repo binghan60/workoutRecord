@@ -14,8 +14,23 @@ export default createVuetify({
       light: {
         dark: false,
         colors: {
-          primary: '#00BCD4', // A standard Material Design cyan
-          secondary: '#B2EBF2', // A lighter cyan
+          primary: '#4DB6AC', // Soft Teal
+          secondary: '#FFCC80', // Soft Orange/Sand
+          background: '#F5F5F5', // Light Grey
+          surface: '#FFFFFF', // White
+          'on-background': '#212121',
+          'on-surface': '#212121',
+        },
+      },
+      dark: {
+        dark: true,
+        colors: {
+          primary: '#4DB6AC', // Soft Teal
+          secondary: '#FFCC80', // Soft Orange/Sand
+          background: '#121212', // Standard Material Dark
+          surface: '#1E1E1E', // Slightly Lighter Dark
+          'on-background': '#FFFFFF',
+          'on-surface': '#FFFFFF',
         },
       },
     },

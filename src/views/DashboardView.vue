@@ -12,7 +12,7 @@
           <v-row>
             <v-col cols="12" class="pa-0">
               <v-card>
-                <v-card-title class="text-cyan-darken-1">整體訓練量</v-card-title>
+                <v-card-title>整體訓練量</v-card-title>
                 <v-card-text>
                   <OverallWorkoutChart />
                 </v-card-text>
@@ -20,7 +20,7 @@
             </v-col>
 
             <v-col cols="12" class="pa-0">
-              <h2 class="text-h5 font-weight-bold my-4 text-cyan-darken-1">各動作歷史趨勢</h2>
+              <h2 class="text-h5 font-weight-bold my-4">各動作歷史趨勢</h2>
               <div v-if="exercisesWithSufficientData.length > 0">
                 <v-row>
                   <v-col v-for="exercise in exercisesWithSufficientData" :key="exercise.id" cols="12" md="6">

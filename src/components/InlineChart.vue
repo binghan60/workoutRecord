@@ -1,12 +1,17 @@
 <script setup>
-import { ref, computed, watch, onBeforeUnmount, nextTick, onMounted } from 'vue'
+import { ref, computed, watch, onBeforeUnmount, nextTick } from 'vue'
 import { useWorkoutStore } from '@/stores/workout'
 import Highcharts from 'highcharts'
+import { useHighchartsTheme } from '@/composables/useHighchartsTheme'
 
 // --- Props ---
 const props = defineProps({
   exerciseName: {
     type: String,
+    required: true,
+  },
+  visible: {
+    type: Boolean,
     required: true,
   },
 })
@@ -17,32 +22,9 @@ const strengthChartContainer = ref(null)
 let volumeChartInstance = null
 let strengthChartInstance = null
 
-// --- Stores ---
+// --- Stores & Composables ---
 const workoutStore = useWorkoutStore()
-
-// --- Highcharts Custom Theme ---
-const darkThemeOptions = {
-  colors: ['#22d3ee', '#a78bfa', '#f87171', '#4ade80', '#facc15', '#fb923c'],
-  chart: { backgroundColor: 'transparent', style: { fontFamily: 'sans-serif' } },
-  title: { style: { color: '#ffffff' } },
-  xAxis: {
-    gridLineColor: '#374151',
-    labels: { style: { color: '#d1d5db' } },
-    lineColor: '#4b5563',
-    tickColor: '#4b5563',
-    title: { style: { color: '#9ca3af' } },
-  },
-  yAxis: {
-    gridLineColor: '#374151',
-    labels: { style: { color: '#d1d5db' } },
-    lineColor: '#4b5563',
-    tickColor: '#4b5563',
-    title: { style: { color: '#9ca3af' } },
-  },
-  tooltip: { backgroundColor: 'rgba(31, 41, 55, 0.9)', style: { color: '#ffffff' }, borderWidth: 0 },
-  legend: { itemStyle: { color: '#e5e7eb' }, itemHoverStyle: { color: '#ffffff' } },
-  credits: { enabled: false },
-}
+const { highchartsTheme } = useHighchartsTheme()
 
 // --- Data Processing ---
 const chartData = computed(() => {
@@ -101,40 +83,160 @@ const updateCharts = async () => {
     return
   }
 
+  const commonXAxis = {
+    ...highchartsTheme.value.xAxis,
+    type: 'datetime',
+    labels: {
+      ...highchartsTheme.value.xAxis.labels,
+      formatter: function () {
+        return Highcharts.dateFormat('%Y-%m-%d', this.value)
+      },
+    },
+  }
+
   // Volume Chart
   if (volumeChartContainer.value) {
     volumeChartInstance = Highcharts.chart(volumeChartContainer.value, {
-      ...darkThemeOptions,
-      title: { ...darkThemeOptions.title, text: `訓練總量趨勢` },
-      xAxis: { ...darkThemeOptions.xAxis, type: 'datetime' },
-      yAxis: { ...darkThemeOptions.yAxis, title: { text: '總量 (kg)' } },
-      series: [{ name: '訓練總量', data: chartData.value.dates.map((date, i) => [date, chartData.value.volumes[i]]), color: darkThemeOptions.colors[0] }],
-      tooltip: { ...darkThemeOptions.tooltip, pointFormat: '{series.name}: <b>{point.y:.2f} kg</b>' },
+      ...highchartsTheme.value,
+      title: { ...highchartsTheme.value.title, text: `訓練總量趨勢` },
+      xAxis: commonXAxis,
+      yAxis: { ...highchartsTheme.value.yAxis, title: { text: '總量 (kg)' } },
+      series: [
+        {
+          type: 'area',
+          name: '訓練總量',
+          data: chartData.value.dates.map((date, i) => [date, chartData.value.volumes[i]]),
+          color: highchartsTheme.value.colors[0],
+          fillColor: {
+            linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 },
+            stops: [
+              [0, Highcharts.color(highchartsTheme.value.colors[0]).setOpacity(0.1).get('rgba')],
+              [1, Highcharts.color(highchartsTheme.value.colors[0]).setOpacity(0).get('rgba')],
+            ],
+          },
+          marker: {
+            enabled: true,
+            radius: 5,
+          },
+        },
+      ],
+      plotOptions: {
+        area: {
+          dataLabels: {
+            enabled: true,
+            color: highchartsTheme.value.title.style.color,
+            formatter: function () {
+              return this.y.toFixed(0)
+            },
+          },
+          marker: {
+            enabled: true,
+            radius: 6,
+          },
+        },
+      },
+      tooltip: {
+        ...highchartsTheme.value.tooltip,
+        formatter: function () {
+          const date = Highcharts.dateFormat('%Y-%m-%d', this.x)
+          return `<b>${date}</b><br/>${this.series.name}: <b>${this.y.toFixed(0)} kg</b>`
+        },
+      },
+      fillColor: {
+        linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 },
+        stops: [
+          [0, Highcharts.color(highchartsTheme.value.colors[2]).setOpacity(0.3).get('rgba')],
+          [1, Highcharts.color(highchartsTheme.value.colors[2]).setOpacity(0).get('rgba')],
+        ],
+      },
+      marker: {
+        enabled: true,
+        radius: 5,
+      },
     })
   }
 
   // Strength Chart
   if (strengthChartContainer.value) {
     strengthChartInstance = Highcharts.chart(strengthChartContainer.value, {
-      ...darkThemeOptions,
-      title: { ...darkThemeOptions.title, text: `力量成長趨勢` },
-      xAxis: { ...darkThemeOptions.xAxis, type: 'datetime' },
-      yAxis: { ...darkThemeOptions.yAxis, title: { text: '重量 (kg)' } },
+      ...highchartsTheme.value,
+      title: { ...highchartsTheme.value.title, text: `力量成長趨勢` },
+      xAxis: commonXAxis,
+      yAxis: { ...highchartsTheme.value.yAxis, title: { text: '重量 (kg)' } },
       series: [
-        { name: '最大重量', data: chartData.value.dates.map((date, i) => [date, chartData.value.maxWeights[i]]), color: darkThemeOptions.colors[1] },
-        { name: '預估 1RM', data: chartData.value.dates.map((date, i) => [date, chartData.value.estimated1RMs[i]]), color: darkThemeOptions.colors[2] },
+        {
+          type: 'area',
+          name: '最大重量',
+          data: chartData.value.dates.map((date, i) => [date, chartData.value.maxWeights[i]]),
+          color: highchartsTheme.value.colors[1],
+          fillColor: {
+            linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 },
+            stops: [
+              [0, Highcharts.color(highchartsTheme.value.colors[1]).setOpacity(0.3).get('rgba')],
+              [1, Highcharts.color(highchartsTheme.value.colors[1]).setOpacity(0).get('rgba')],
+            ],
+          },
+          marker: {
+            enabled: true,
+            radius: 5,
+          },
+        },
+        {
+          type: 'area',
+          name: '預估 1RM',
+          data: chartData.value.dates.map((date, i) => [date, chartData.value.estimated1RMs[i]]),
+          color: highchartsTheme.value.colors[2],
+          fillColor: {
+            linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 },
+            stops: [
+              [0, Highcharts.color(highchartsTheme.value.colors[2]).setOpacity(0.3).get('rgba')],
+              [1, Highcharts.color(highchartsTheme.value.colors[2]).setOpacity(0).get('rgba')],
+            ],
+          },
+          marker: {
+            enabled: true,
+            radius: 5,
+          },
+        },
       ],
-      tooltip: { ...darkThemeOptions.tooltip, pointFormat: '{series.name}: <b>{point.y:.2f} kg</b>' },
+      plotOptions: {
+        area: {
+          dataLabels: {
+            enabled: true,
+            color: highchartsTheme.value.title.style.color,
+            formatter: function () {
+              return this.y.toFixed(0)
+            },
+          },
+          marker: {
+            enabled: true,
+            radius: 6,
+          },
+        },
+      },
+      tooltip: {
+        ...highchartsTheme.value.tooltip,
+        formatter: function () {
+          const date = Highcharts.dateFormat('%Y-%m-%d', this.x)
+          return `<b>${date}</b><br/>${this.series.name}: <b>${this.y.toFixed(0)} kg</b>`
+        },
+      },
     })
   }
 }
 
 // --- Watchers ---
-watch(() => props.exerciseName, updateCharts)
+watch(
+  () => props.visible,
+  (isVisible) => {
+    if (isVisible) {
+      updateCharts()
+    }
+  },
+  { immediate: true },
+)
 
 // --- Lifecycle Hooks ---
-onMounted(updateCharts)
-
 onBeforeUnmount(() => {
   if (volumeChartInstance) volumeChartInstance.destroy()
   if (strengthChartInstance) strengthChartInstance.destroy()
@@ -147,7 +249,7 @@ onBeforeUnmount(() => {
       <div ref="volumeChartContainer" class="mb-8" style="height: 400px; width: 100%"></div>
       <div ref="strengthChartContainer" style="height: 400px; width: 100%"></div>
     </div>
-    <div v-else-if="exerciseName" class="text-center text-gray-400 py-10">
+    <div v-else-if="exerciseName" class="text-center text-medium-emphasis py-10">
       <p>關於「{{ exerciseName }}」的訓練紀錄不足（至少需要兩次紀錄才能繪製趨勢圖）。</p>
       <p>請增加更多訓練紀錄！</p>
     </div>

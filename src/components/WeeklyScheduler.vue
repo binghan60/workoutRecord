@@ -50,7 +50,6 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useTemplateStore } from '@/stores/template'
-import { VueDraggableNext } from 'vue-draggable-next'
 
 const templateStore = useTemplateStore()
 
@@ -61,13 +60,6 @@ const isToday = (day) => {
   const today = new Date()
   const dayIndex = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'].indexOf(day)
   return today.getDay() === dayIndex
-}
-
-const handleDrop = (day, event) => {
-  const templateId = event.dataTransfer.getData('templateId')
-  if (templateId) {
-    templateStore.addTemplateToSchedule(day, templateId)
-  }
 }
 
 const openAddModal = (day) => {

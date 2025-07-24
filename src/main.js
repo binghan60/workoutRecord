@@ -7,6 +7,27 @@ import router from './router'
 import Toast, { useToast } from 'vue-toastification'
 import 'vue-toastification/dist/index.css'
 import vuetify from './plugins/vuetify'
+Highcharts.setOptions({
+  lang: {
+    thousandsSep: ',',
+    decimalPoint: '.',
+    resetZoom: 'Reset zoom',
+    resetZoomTitle: 'Reset zoom level 1:1',
+    printChart: 'Print chart',
+    downloadPNG: 'Download PNG image',
+    downloadJPEG: 'Download JPEG image',
+    downloadPDF: 'Download PDF document',
+    downloadSVG: 'Download SVG vector image',
+    contextButtonTitle: 'Chart context menu',
+    loading: 'Loading...',
+    months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+    shortMonths: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+    weekdays: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+  },
+  global: {
+    useUTC: false,
+  },
+})
 
 // VeeValidate 全域設定
 import { defineRule, configure } from 'vee-validate'
@@ -61,12 +82,12 @@ const toastOptions = {
 
 const app = createApp(App)
 
+app.use(createPinia()) // Pinia 必須在 Vuetify 之前
 app.use(vuetify)
 app.use(Toast, toastOptions)
 app.config.globalProperties.$toast = useToast()
 
 app.use(HighchartsVue, { Highcharts })
-app.use(createPinia())
 app.use(router)
 
 app.mount('#app')

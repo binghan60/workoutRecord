@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import { useToast } from 'vue-toastification'
-import { useUiStore } from './ui'
+import { useUIStore } from './ui'
 
 const toast = useToast()
 
@@ -9,7 +9,7 @@ const toast = useToast()
 const fakeApiCall = (ms = 300) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export const useExerciseStore = defineStore('exercise', () => {
-  const uiStore = useUiStore()
+  const uiStore = useUIStore()
   // 內建的預設動作
   const defaultExercises = ref([
     { id: 'de-1', name: '臥推 (Bench Press)', muscleGroup: '胸部', isCustom: false },

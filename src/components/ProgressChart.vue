@@ -2,6 +2,7 @@
 import { ref, computed, watch, onBeforeUnmount, onMounted } from 'vue'
 import { useWorkoutStore } from '@/stores/workout'
 import Highcharts from 'highcharts'
+import { useHighchartsTheme } from '@/composables/useHighchartsTheme'
 
 // --- Chart Containers and Instances ---
 const volumeChartContainer = ref(null)
@@ -17,100 +18,50 @@ const props = defineProps({
   },
 })
 
-// --- Stores ---
+// --- Stores & Composables ---
 const workoutStore = useWorkoutStore()
-
-// --- Highcharts Custom Theme ---
-const darkThemeOptions = {
-  colors: ['#22d3ee', '#a78bfa', '#f87171', '#4ade80', '#facc15', '#fb923c'],
-  chart: {
-    backgroundColor: 'transparent',
-    style: { fontFamily: 'sans-serif' },
-    animation: false, // 禁用動畫以避免潛在問題
-  },
-  title: { style: { color: '#ffffff' } },
-  xAxis: {
-    gridLineColor: '#374151',
-    labels: { style: { color: '#d1d5db' } },
-    lineColor: '#4b5563',
-    tickColor: '#4b5563',
-    title: { style: { color: '#9ca3af' } },
-  },
-  yAxis: {
-    gridLineColor: '#374151',
-    labels: { style: { color: '#d1d5db' } },
-    lineColor: '#4b5563',
-    tickColor: '#4b5563',
-    title: { style: { color: '#9ca3af' } },
-  },
-  tooltip: {
-    backgroundColor: 'rgba(31, 41, 55, 0.9)',
-    style: { color: '#ffffff' },
-    borderWidth: 0,
-    useHTML: false, // 避免 HTML 相關問題
-  },
-  legend: {
-    itemStyle: { color: '#e5e7eb' },
-    itemHoverStyle: { color: '#ffffff' },
-  },
-  credits: { enabled: false },
-  plotOptions: {
-    series: {
-      animation: false, // 禁用系列動畫
-      states: {
-        hover: {
-          enabled: true,
-        },
-      },
-    },
-  },
-}
+const { highchartsTheme } = useHighchartsTheme()
 
 // --- Data Processing ---
 const chartData = computed(() => {
   if (!props.exerciseName) return null
 
-  try {
-    const history = []
-    workoutStore.workouts.forEach((workout) => {
-      workout.exercises.forEach((exercise) => {
-        if (exercise.name === props.exerciseName) {
-          let totalVolume = 0,
-            maxWeight = 0,
-            estimated1RM = 0
-          exercise.sets.forEach((set) => {
-            const weight = parseFloat(set.weight) || 0
-            const reps = parseInt(set.reps) || 0
-            if (weight > 0 && reps > 0) {
-              totalVolume += weight * reps
-              if (weight > maxWeight) maxWeight = weight
-              const current1RM = weight * (1 + reps / 30)
-              if (current1RM > estimated1RM) estimated1RM = current1RM
-            }
-          })
-          if (totalVolume > 0) {
-            history.push({
-              date: new Date(workout.createdAt).getTime(),
-              volume: totalVolume,
-              maxWeight: maxWeight,
-              estimated1RM: Math.round(estimated1RM * 100) / 100,
-            })
+  const history = []
+  workoutStore.workouts.forEach((workout) => {
+    workout.exercises.forEach((exercise) => {
+      if (exercise.name === props.exerciseName) {
+        let totalVolume = 0,
+          maxWeight = 0,
+          estimated1RM = 0
+        exercise.sets.forEach((set) => {
+          const weight = parseFloat(set.weight) || 0
+          const reps = parseInt(set.reps) || 0
+          if (weight > 0 && reps > 0) {
+            totalVolume += weight * reps
+            if (weight > maxWeight) maxWeight = weight
+            const current1RM = weight * (1 + reps / 30)
+            if (current1RM > estimated1RM) estimated1RM = current1RM
           }
+        })
+        if (totalVolume > 0) {
+          history.push({
+            date: new Date(workout.createdAt).getTime(),
+            volume: totalVolume,
+            maxWeight: maxWeight,
+            estimated1RM: Math.round(estimated1RM * 100) / 100,
+          })
         }
-      })
+      }
     })
+  })
 
-    history.sort((a, b) => a.date - b.date)
+  history.sort((a, b) => a.date - b.date)
 
-    return {
-      dates: history.map((h) => h.date),
-      volumes: history.map((h) => h.volume),
-      maxWeights: history.map((h) => h.maxWeight),
-      estimated1RMs: history.map((h) => h.estimated1RM),
-    }
-  } catch (error) {
-    console.error('Error processing chart data:', error)
-    return null
+  return {
+    dates: history.map((h) => h.date),
+    volumes: history.map((h) => h.volume),
+    maxWeights: history.map((h) => h.maxWeight),
+    estimated1RMs: history.map((h) => h.estimated1RM),
   }
 })
 
@@ -119,214 +70,193 @@ const createVolumeChart = (data) => {
   if (!volumeChartContainer.value) return null
 
   const volumeOptions = {
-    ...darkThemeOptions,
+    ...highchartsTheme.value,
     title: {
-      ...darkThemeOptions.title,
+      ...highchartsTheme.value.title,
       text: `${props.exerciseName} - 訓練總量趨勢`,
     },
     xAxis: {
-      ...darkThemeOptions.xAxis,
+      ...highchartsTheme.value.xAxis,
       type: 'datetime',
-      title: { text: '日期' },
       labels: {
-        ...darkThemeOptions.xAxis.labels,
+        ...highchartsTheme.value.xAxis.labels,
         formatter: function () {
           return Highcharts.dateFormat('%Y-%m-%d', this.value)
         },
       },
     },
     yAxis: {
-      ...darkThemeOptions.yAxis,
+      ...highchartsTheme.value.yAxis,
       title: { text: '總量 (kg)' },
-      labels: {
-        ...darkThemeOptions.yAxis.labels,
-        formatter: function () {
-          return this.value.toFixed(1) + ' kg'
-        },
-      },
     },
     series: [
       {
         type: 'area',
         name: '訓練總量',
         data: data.dates.map((date, i) => [date, data.volumes[i]]),
-        color: darkThemeOptions.colors[0],
+        color: highchartsTheme.value.colors[0],
         fillColor: {
           linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 },
           stops: [
-            [0, Highcharts.color(darkThemeOptions.colors[0]).setOpacity(0.5).get('rgba')],
-            [1, Highcharts.color(darkThemeOptions.colors[0]).setOpacity(0).get('rgba')],
+            [0, Highcharts.color(highchartsTheme.value.colors[0]).setOpacity(0.3).get('rgba')],
+            [1, Highcharts.color(highchartsTheme.value.colors[0]).setOpacity(0).get('rgba')],
           ],
         },
         marker: {
           enabled: true,
-          radius: 4,
+          radius: 5,
         },
       },
     ],
+    plotOptions: {
+      area: {
+        dataLabels: {
+          enabled: true,
+          color: highchartsTheme.value.title.style.color,
+          formatter: function () {
+            return this.y.toFixed(0)
+          },
+        },
+        marker: {
+          enabled: true,
+          radius: 6,
+        },
+      },
+    },
     tooltip: {
-      ...darkThemeOptions.tooltip,
+      ...highchartsTheme.value.tooltip,
       formatter: function () {
-        return '<b>' + this.series.name + '</b><br/>' + Highcharts.dateFormat('%Y-%m-%d', this.x) + ': ' + this.y.toFixed(2) + ' kg'
+        const date = Highcharts.dateFormat('%Y-%m-%d', this.x)
+        return `<b>${date}</b><br/>${this.series.name}: <b>${this.y.toFixed(0)} kg</b>`
       },
     },
   }
-
-  try {
-    return Highcharts.chart(volumeChartContainer.value, volumeOptions)
-  } catch (error) {
-    console.error('Error creating volume chart:', error)
-    return null
-  }
+  console.log(highchartsTheme.value.tooltip)
+  return Highcharts.chart(volumeChartContainer.value, volumeOptions)
 }
 
 const createStrengthChart = (data) => {
   if (!strengthChartContainer.value) return null
 
   const strengthOptions = {
-    ...darkThemeOptions,
+    ...highchartsTheme.value,
     title: {
-      ...darkThemeOptions.title,
+      ...highchartsTheme.value.title,
       text: `${props.exerciseName} - 力量成長趨勢`,
     },
     xAxis: {
-      ...darkThemeOptions.xAxis,
+      ...highchartsTheme.value.xAxis,
       type: 'datetime',
-      title: { text: '日期' },
       labels: {
-        ...darkThemeOptions.xAxis.labels,
+        ...highchartsTheme.value.xAxis.labels,
         formatter: function () {
           return Highcharts.dateFormat('%Y-%m-%d', this.value)
         },
       },
     },
     yAxis: {
-      ...darkThemeOptions.yAxis,
+      ...highchartsTheme.value.yAxis,
       title: { text: '重量 (kg)' },
-      labels: {
-        ...darkThemeOptions.yAxis.labels,
-        formatter: function () {
-          return this.value.toFixed(1) + ' kg'
-        },
-      },
     },
     series: [
       {
         type: 'area',
         name: '最大重量',
         data: data.dates.map((date, i) => [date, data.maxWeights[i]]),
-        color: darkThemeOptions.colors[1],
+        color: highchartsTheme.value.colors[1],
         fillColor: {
           linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 },
           stops: [
-            [0, Highcharts.color(darkThemeOptions.colors[1]).setOpacity(0.5).get('rgba')],
-            [1, Highcharts.color(darkThemeOptions.colors[1]).setOpacity(0).get('rgba')],
+            [0, Highcharts.color(highchartsTheme.value.colors[1]).setOpacity(0.5).get('rgba')],
+            [1, Highcharts.color(highchartsTheme.value.colors[1]).setOpacity(0).get('rgba')],
           ],
         },
         marker: {
           enabled: true,
-          radius: 4,
+          radius: 5,
         },
       },
       {
         type: 'area',
         name: '預估 1RM',
         data: data.dates.map((date, i) => [date, data.estimated1RMs[i]]),
-        color: darkThemeOptions.colors[2],
+        color: highchartsTheme.value.colors[2],
         fillColor: {
           linearGradient: { x1: 0, y1: 0, x2: 0, y2: 1 },
           stops: [
-            [0, Highcharts.color(darkThemeOptions.colors[2]).setOpacity(0.5).get('rgba')],
-            [1, Highcharts.color(darkThemeOptions.colors[2]).setOpacity(0).get('rgba')],
+            [0, Highcharts.color(highchartsTheme.value.colors[2]).setOpacity(0.5).get('rgba')],
+            [1, Highcharts.color(highchartsTheme.value.colors[2]).setOpacity(0).get('rgba')],
           ],
         },
         marker: {
           enabled: true,
-          radius: 4,
+          radius: 5,
         },
       },
     ],
+    plotOptions: {
+      area: {
+        dataLabels: {
+          enabled: true,
+          color: highchartsTheme.value.title.style.color,
+          formatter: function () {
+            return this.y.toFixed(0)
+          },
+        },
+        marker: {
+          enabled: true,
+          radius: 6,
+        },
+      },
+    },
     tooltip: {
-      ...darkThemeOptions.tooltip,
+      ...highchartsTheme.value.tooltip,
       formatter: function () {
-        return '<b>' + this.series.name + '</b><br/>' + Highcharts.dateFormat('%Y-%m-%d', this.x) + ': ' + this.y.toFixed(2) + ' kg'
+        const date = Highcharts.dateFormat('%Y-%m-%d', this.x)
+        return `<b>${date}</b><br/>${this.series.name}: <b>${this.y.toFixed(2)} kg</b>`
       },
     },
   }
-
-  try {
-    return Highcharts.chart(strengthChartContainer.value, strengthOptions)
-  } catch (error) {
-    console.error('Error creating strength chart:', error)
-    return null
-  }
+  return Highcharts.chart(strengthChartContainer.value, strengthOptions)
 }
 
 // --- Chart Logic ---
-const updateCharts = async () => {
-  try {
-    // 等待 DOM 更新完成
-    // await nextTick()
+const updateCharts = () => {
+  if (volumeChartInstance) volumeChartInstance.destroy()
+  if (strengthChartInstance) strengthChartInstance.destroy()
 
-    // 清理現有圖表
-    if (volumeChartInstance) {
-      volumeChartInstance.destroy()
-      volumeChartInstance = null
-    }
-    if (strengthChartInstance) {
-      strengthChartInstance.destroy()
-      strengthChartInstance = null
-    }
+  if (!chartData.value || chartData.value.dates.length < 2) return
 
-    // 檢查數據是否足夠
-    if (!chartData.value || chartData.value.dates.length < 2) {
-      return
-    }
-
-    // ��建新圖表
-    volumeChartInstance = createVolumeChart(chartData.value)
-    strengthChartInstance = createStrengthChart(chartData.value)
-  } catch (error) {
-    console.error('Error updating charts:', error)
-  }
+  volumeChartInstance = createVolumeChart(chartData.value)
+  strengthChartInstance = createStrengthChart(chartData.value)
 }
 
 // --- Watchers ---
-watch(chartData, updateCharts, { immediate: true })
-watch(() => props.exerciseName, updateCharts, { immediate: true }) // Add watcher for exerciseName
+watch(
+  () => [chartData.value, highchartsTheme.value],
+  () => {
+    updateCharts()
+  },
+  { immediate: true, deep: true },
+)
 
 // --- Lifecycle Hooks ---
-onMounted(() => {
-  // 確保在組件掛載後再創建圖表
-  if (chartData.value && chartData.value.dates.length >= 2) {
-    updateCharts()
-  }
-})
+onMounted(updateCharts)
 
 onBeforeUnmount(() => {
-  try {
-    if (volumeChartInstance) {
-      volumeChartInstance.destroy()
-      volumeChartInstance = null
-    }
-    if (strengthChartInstance) {
-      strengthChartInstance.destroy()
-      strengthChartInstance = null
-    }
-  } catch (error) {
-    console.error('Error destroying charts:', error)
-  }
+  if (volumeChartInstance) volumeChartInstance.destroy()
+  if (strengthChartInstance) strengthChartInstance.destroy()
 })
 </script>
 
 <template>
-  <div class="max-w-6xl mx-auto p-4 rounded-lg">
+  <div>
     <div v-if="chartData && chartData.dates.length > 1">
       <div ref="volumeChartContainer" class="mb-8 h-72 md:h-96 w-full"></div>
       <div ref="strengthChartContainer" class="h-72 md:h-96 w-full"></div>
     </div>
 
-    <div v-else class="text-center text-gray-400 py-10">
+    <div v-else class="text-center text-medium-emphasis py-10">
       <p>關於「{{ props.exerciseName }}」的訓練紀錄不足（至少需要兩次紀錄才能繪製趨勢圖）。</p>
       <p>請增加更多訓練紀錄！</p>
     </div>

@@ -9,6 +9,8 @@
     <v-app-bar app color="primary">
       <v-app-bar-nav-icon @click="drawer = !drawer"></v-app-bar-nav-icon>
       <v-toolbar-title>{{ currentRouteTitle }}</v-toolbar-title>
+      <v-spacer></v-spacer>
+      <v-btn @click="uiStore.toggleTheme" :icon="uiStore.theme === 'light' ? 'mdi-weather-sunny' : 'mdi-weather-night'"></v-btn>
     </v-app-bar>
 
     <v-main>
@@ -18,17 +20,30 @@
     <!-- Keep existing global components -->
     <LoadingOverlay />
     <ConfirmModal />
+    <ExerciseModal />
+    <BodyMetricsModal />
   </v-app>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watchEffect } from 'vue'
 import { useRoute } from 'vue-router'
+import { useUIStore } from '@/stores/ui'
+import { useTheme } from 'vuetify'
 import LoadingOverlay from '@/components/LoadingOverlay.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import ExerciseModal from '@/components/ExerciseModal.vue'
+import BodyMetricsModal from '@/components/BodyMetricsModal.vue'
 
 const drawer = ref(null)
 const route = useRoute()
+const uiStore = useUIStore()
+const theme = useTheme()
+
+// 使用 watchEffect 來響應式地同步主題
+watchEffect(() => {
+  theme.change(uiStore.theme)
+})
 
 const navItems = [
   { title: '儀表板', icon: 'mdi-view-dashboard', to: '/' },

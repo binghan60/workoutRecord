@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, watch, computed } from 'vue'
 import { useToast } from 'vue-toastification'
-import { useUiStore } from './ui'
+import { useUIStore } from './ui'
 
 const toast = useToast()
 
@@ -9,7 +9,7 @@ const toast = useToast()
 const fakeApiCall = (ms = 300) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export const useWorkoutStore = defineStore('workout', () => {
-  const uiStore = useUiStore()
+  const uiStore = useUIStore()
   const workouts = ref(JSON.parse(localStorage.getItem('workouts')) || [])
   const currentPage = ref(1)
   const itemsPerPage = ref(5)

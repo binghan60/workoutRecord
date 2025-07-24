@@ -19,15 +19,16 @@
       </v-sheet>
     </v-overlay>
 
-    <div v-if="!isWorkoutLoaded" class="text-center text-grey-darken-1 py-10">
+    <div v-if="!isWorkoutLoaded" class="text-center text-medium-emphasis py-10">
       <v-progress-circular indeterminate color="primary"></v-progress-circular>
       <p class="mt-4">正在載入今日訓練計畫...</p>
     </div>
 
     <Form v-else ref="formRef" @submit="confirmSubmission" :initial-values="getInitialValues">
       <Field name="workoutName" type="hidden" />
-      <FieldArray name="exercises" v-slot="{ fields, remove }">
-        <div v-if="fields.length === 0" class="d-flex flex-column align-center justify-center text-center text-grey-darken-1 pa-4" style="min-height: 80vh">
+      <FieldArray name="exercises" v-slot="{ fields, remove, push }">
+        <span v-show="false">{{ (exercisePushFn = push) && '' }}</span>
+        <div v-if="fields.length === 0" class="d-flex flex-column align-center justify-center text-center text-medium-emphasis pa-4" style="min-height: 80vh">
           <p class="text-h6">今天沒有預定的訓練。</p>
           <p class="mt-2">請從下方選擇並新增您的第一個訓練動作！</p>
           <v-btn @click="modalStore.showExerciseModal" color="primary" class="mt-4">新增動作</v-btn>
@@ -126,6 +127,7 @@ const restTimeRemaining = ref(0)
 const restTimerInterval = ref(null)
 const restStartTime = ref(null)
 const lastCompletedSetInfo = ref(null)
+const exercisePushFn = ref(null)
 
 const allExercises = computed(() => exerciseStore.allExercises)
 const daysOfWeek = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
@@ -272,16 +274,12 @@ const removeExercise = (remove) => {
 
 const addExerciseToWorkout = (exerciseId) => {
   const exercise = allExercises.value.find((ex) => ex.id === exerciseId)
-  if (exercise) {
-    const exercisesField = formRef.value.values.exercises
-    formRef.value.setFieldValue('exercises', [
-      ...exercisesField,
-      {
-        name: exercise.name,
-        restTime: 60,
-        sets: [{ reps: 10, weight: 10, isCompleted: false, actualRestTime: null }],
-      },
-    ])
+  if (exercise && exercisePushFn.value) {
+    exercisePushFn.value({
+      name: exercise.name,
+      restTime: 60,
+      sets: [{ reps: 10, weight: 10, isCompleted: false, actualRestTime: null }],
+    })
   }
 }
 

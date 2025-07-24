@@ -1,26 +1,51 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 
-export const useUiStore = defineStore('ui', () => {
+export const useUIStore = defineStore('ui', () => {
+  // Theme Management
+  const getInitialTheme = () => {
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem('theme')
+      if (savedTheme) {
+        return savedTheme
+      }
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+    }
+    return 'light' // Fallback for SSR
+  }
+
+  const theme = ref(getInitialTheme())
+
+  function toggleTheme() {
+    theme.value = theme.value === 'light' ? 'dark' : 'light'
+  }
+
+  watch(theme, (newTheme) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('theme', newTheme)
+    }
+  })
+
+  onMounted(() => {
+    theme.value = getInitialTheme()
+  })
+
+  // Loading Management
   const isLoading = ref(false)
 
-  function startLoading() {
+  async function withLoading(asyncFn) {
     isLoading.value = true
-  }
-
-  function stopLoading() {
-    isLoading.value = false
-  }
-
-  // 方便非同步操作的輔助函式
-  async function withLoading(action) {
     try {
-      startLoading()
-      await action()
+      return await asyncFn()
     } finally {
-      stopLoading()
+      isLoading.value = false
     }
   }
 
-  return { isLoading, startLoading, stopLoading, withLoading }
+  return {
+    theme,
+    toggleTheme,
+    isLoading,
+    withLoading,
+  }
 })

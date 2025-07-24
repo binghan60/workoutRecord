@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, watch, computed } from 'vue'
 import { useToast } from 'vue-toastification'
-import { useUiStore } from './ui'
+import { useUIStore } from './ui'
 
 const toast = useToast()
 
@@ -11,7 +11,7 @@ const fakeApiCall = (ms = 300) => new Promise((resolve) => setTimeout(resolve, m
 const daysOfWeek = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日']
 
 export const useTemplateStore = defineStore('template', () => {
-  const uiStore = useUiStore()
+  const uiStore = useUIStore()
 
   // --- STATE ---
   const templates = ref(JSON.parse(localStorage.getItem('workoutTemplates')) || [])

@@ -57,7 +57,7 @@
         <v-card-title class="text-h5">我的課表庫</v-card-title>
         <v-card-text>
           <v-list v-if="templateStore.templates.length > 0">
-            <v-list-item v-for="template in templateStore.templates" :key="template.id" :title="template.name" :subtitle="`${template.exercises.length} 個動作`" draggable="true" @dragstart="handleDragStart($event, template.id)">
+            <v-list-item v-for="template in templateStore.templates" :key="template.id" :title="template.name" :subtitle="`${template.exercises.length} 個動作`">
               <template v-slot:append>
                 <v-btn icon="mdi-delete" variant="text" color="grey" @click="confirmDeleteTemplate(template.id, template.name)"></v-btn>
               </template>

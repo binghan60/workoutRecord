@@ -18,18 +18,20 @@
                 <p class="text-h5">{{ workout.name }}</p>
                 <p class="text-caption">{{ formatDate(workout.createdAt) }}</p>
               </div>
-              <v-btn color="red" variant="text" @click="confirmDeleteWorkout(workout.id)">刪除</v-btn>
+              <div>
+                <v-btn variant="text" @click="toggleAll(workout.id, workout.exercises.length)">
+                  {{ areAllExpanded(workout.id, workout.exercises.length) ? '全部收合' : '全部展開' }}
+                </v-btn>
+                <v-btn color="red" variant="text" @click="confirmDeleteWorkout(workout.id)">刪除</v-btn>
+              </div>
             </v-card-title>
             <v-card-text>
-              <v-expansion-panels>
+              <v-expansion-panels v-model="expandedPanels[workout.id]" multiple>
                 <v-expansion-panel v-for="(exercise, index) in workout.exercises" :key="index">
                   <v-expansion-panel-title>
                     <v-btn variant="text" class="pa-0" @click.stop="showChartModal(exercise.name)">
                       {{ exercise.name }}
                     </v-btn>
-                    <v-chip v-if="getExerciseDetails(exercise.name)" :color="getMuscleGroupColor(getExerciseDetails(exercise.name).muscleGroup)" size="small" class="ml-3">
-                      {{ getExerciseDetails(exercise.name).muscleGroup }}
-                    </v-chip>
                   </v-expansion-panel-title>
                   <v-expansion-panel-text>
                     <v-table dense>
@@ -82,6 +84,7 @@ const modalStore = useModalStore()
 
 const workouts = computed(() => workoutStore.paginatedWorkouts)
 const currentPage = ref(workoutStore.currentPage)
+const expandedPanels = ref({})
 
 watch(currentPage, (newPage) => {
   workoutStore.goToPage(newPage)
@@ -112,5 +115,17 @@ const confirmDeleteWorkout = (workoutId) => {
   modalStore.showConfirmation('確認刪除', '確定要刪除這筆訓練紀錄嗎？此操作無法復原。', () => {
     workoutStore.deleteWorkout(workoutId)
   })
+}
+
+const areAllExpanded = (workoutId, exerciseCount) => {
+  return expandedPanels.value[workoutId]?.length === exerciseCount
+}
+
+const toggleAll = (workoutId, exerciseCount) => {
+  if (areAllExpanded(workoutId, exerciseCount)) {
+    expandedPanels.value[workoutId] = []
+  } else {
+    expandedPanels.value[workoutId] = [...Array(exerciseCount).keys()]
+  }
 }
 </script>

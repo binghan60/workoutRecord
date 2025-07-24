@@ -1,10 +1,41 @@
+<template>
+  <v-dialog :model-value="modalStore.isBodyMetricsModalOpen" @update:model-value="modalStore.hideBodyMetricsModal()" max-width="600px">
+    <v-card>
+      <v-card-title>
+        <span class="text-h5">新增身體數值紀錄</span>
+      </v-card-title>
+      <v-card-text>
+        <v-container>
+          <v-form @submit.prevent="handleSubmit">
+            <v-row>
+              <v-col cols="12">
+                <v-text-field v-model="newRecord.date" label="日期" type="date" variant="outlined" density="compact"></v-text-field>
+              </v-col>
+              <v-col v-for="(label, key) in metricLabels" :key="key" cols="12" sm="6">
+                <v-text-field v-model="newRecord[key]" :label="label" type="number" step="0.1" variant="outlined" density="compact"></v-text-field>
+              </v-col>
+            </v-row>
+          </v-form>
+        </v-container>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer></v-spacer>
+        <v-btn color="grey-darken-1" text @click="modalStore.hideBodyMetricsModal()">取消</v-btn>
+        <v-btn color="primary" @click="handleSubmit">儲存紀錄</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+</template>
+
 <script setup>
 import { ref, watch } from 'vue'
 import { useBodyMetricsStore } from '@/stores/bodyMetrics'
 import { useModalStore } from '@/stores/modal'
+import { useToast } from 'vue-toastification'
 
 const bodyMetricsStore = useBodyMetricsStore()
 const modalStore = useModalStore()
+const toast = useToast()
 
 const getTodayString = () => new Date().toISOString().split('T')[0]
 
@@ -56,8 +87,9 @@ const handleSubmit = () => {
   // Start from index 1 to skip the date field
   for (const key in newRecord.value) {
     if (key === 'date') continue
-    if (newRecord.value[key] !== null && newRecord.value[key] !== '') {
-      recordData[key] = parseFloat(newRecord.value[key])
+    const value = newRecord.value[key]
+    if (value !== null && value !== '' && !isNaN(parseFloat(value))) {
+      recordData[key] = parseFloat(value)
       hasData = true
     }
   }
@@ -65,35 +97,9 @@ const handleSubmit = () => {
   if (hasData) {
     bodyMetricsStore.addRecord(recordData)
     modalStore.hideBodyMetricsModal()
+    toast.success('身體數值已成功儲存！')
   } else {
-    // You might want to use a toast notification here
-    alert('請至少填寫一項身體數值')
+    toast.error('請至少填寫一項有效的身體數值')
   }
 }
 </script>
-
-<template>
-  <div v-if="modalStore.isBodyMetricsModalOpen" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="modalStore.hideBodyMetricsModal">
-    <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-lg">
-      <div class="p-6">
-        <h3 class="text-xl font-bold text-white text-center mb-6">新增身體數值紀錄</h3>
-        <form @submit.prevent="handleSubmit" class="grid grid-cols-2 gap-4">
-          <!-- Date Picker -->
-          <div class="col-span-2">
-            <label for="modal-date" class="block text-sm font-medium text-gray-300">日期</label>
-            <input type="date" id="modal-date" v-model="newRecord.date" class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm text-white focus:ring-cyan-500 focus:border-cyan-500" />
-          </div>
-
-          <div v-for="(label, key) in metricLabels" :key="key">
-            <label :for="`modal-${key}`" class="block text-sm font-medium text-gray-300">{{ label }}</label>
-            <input type="number" step="0.1" :id="`modal-${key}`" v-model="newRecord[key]" class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm text-white focus:ring-cyan-500 focus:border-cyan-500" />
-          </div>
-          <div class="col-span-2 mt-4 flex justify-end gap-x-4">
-            <button type="button" @click="modalStore.hideBodyMetricsModal" class="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded">取消</button>
-            <button type="submit" class="bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-2 px-4 rounded">儲存紀錄</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-</template>

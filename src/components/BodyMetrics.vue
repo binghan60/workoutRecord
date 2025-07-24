@@ -25,7 +25,7 @@
             <div v-if="bodyMetricsStore.records.length > 0">
               <Chart :options="chartOptions" />
             </div>
-            <div v-else class="text-center text-grey-darken-1 py-10">
+            <div v-else class="text-center text-medium-emphasis py-10">
               <p>尚無紀錄可顯示圖表</p>
             </div>
           </v-card-text>
@@ -58,9 +58,11 @@ import { ref, computed } from 'vue'
 import { useBodyMetricsStore } from '@/stores/bodyMetrics'
 import { useModalStore } from '@/stores/modal'
 import { Chart } from 'highcharts-vue'
+import { useHighchartsTheme } from '@/composables/useHighchartsTheme'
 
 const bodyMetricsStore = useBodyMetricsStore()
 const modalStore = useModalStore()
+const { highchartsTheme } = useHighchartsTheme()
 
 const metricLabels = {
   weight: '體重 (kg)',
@@ -94,20 +96,21 @@ const chartOptions = computed(() => {
   const sortedRecords = [...bodyMetricsStore.records].sort((a, b) => new Date(a.date) - new Date(b.date))
 
   return {
+    ...highchartsTheme.value,
     chart: {
+      ...highchartsTheme.value.chart,
       type: 'line',
-      backgroundColor: 'transparent',
     },
     title: {
+      ...highchartsTheme.value.title,
       text: `${metricLabels[selectedMetric.value]} 趨勢圖`,
-      style: {
-        color: '#00BCD4', // Primary color
-      },
     },
     xAxis: {
+      ...highchartsTheme.value.xAxis,
       categories: sortedRecords.map((r) => r.date),
     },
     yAxis: {
+      ...highchartsTheme.value.yAxis,
       title: {
         text: metricLabels[selectedMetric.value],
       },
@@ -116,13 +119,9 @@ const chartOptions = computed(() => {
       {
         name: metricLabels[selectedMetric.value],
         data: sortedRecords.map((r) => r[selectedMetric.value]).filter((d) => d != null),
-        color: '#00BCD4', // Primary color
       },
     ],
     legend: {
-      enabled: false,
-    },
-    credits: {
       enabled: false,
     },
   }
