@@ -96,8 +96,7 @@ const handleSubmit = () => {
 
   if (hasData) {
     bodyMetricsStore.addRecord(recordData)
-    modalStore.hideBodyMetricsModal()
-    toast.success('身體數值已成功儲存！')
+    // modalStore.hideBodyMetricsModal() // Let the store handle closing
   } else {
     toast.error('請至少填寫一項有效的身體數值')
   }

@@ -84,6 +84,9 @@ export function useHighchartsTheme() {
       credits: {
         enabled: false,
       },
+      accessibility: {
+        enabled: false,
+      },
       labels: {
         style: {
           color: colors['on-surface'],

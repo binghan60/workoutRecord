@@ -131,7 +131,6 @@ const createVolumeChart = (data) => {
       },
     },
   }
-  console.log(highchartsTheme.value.tooltip)
   return Highcharts.chart(volumeChartContainer.value, volumeOptions)
 }
 

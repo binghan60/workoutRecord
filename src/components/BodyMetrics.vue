@@ -94,7 +94,6 @@ const tableHeaders = [
 
 const chartOptions = computed(() => {
   const sortedRecords = [...bodyMetricsStore.records].sort((a, b) => new Date(a.date) - new Date(b.date))
-
   return {
     ...highchartsTheme.value,
     chart: {
