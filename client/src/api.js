@@ -2,12 +2,12 @@ import axios from 'axios'
 import { useUIStore } from '@/stores/ui'
 
 const apiClient = axios.create({
-  baseURL: 'http://localhost:3000/api', // Your backend API URL
+  baseURL: import.meta.env.VITE_API_PATH, // Your backend API URL
   headers: {
     'Content-Type': 'application/json',
   },
 })
-
+console.log(import.meta.env.VITE_API_PATH)
 // Add a request interceptor to show loading spinner
 apiClient.interceptors.request.use(
   (config) => {
