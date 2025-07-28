@@ -3,11 +3,14 @@ import { ref, computed } from 'vue'
 import { useToast } from 'vue-toastification'
 import apiClient from '@/api'
 import { useTemplateStore } from './template'
+import { useAuthStore } from './auth'
 
 const toast = useToast()
+const GUEST_EXERCISES_KEY = 'guest_exercises'
 
 export const useExerciseStore = defineStore('exercise', () => {
   const exercises = ref([])
+  const authStore = useAuthStore()
 
   const allExercises = computed(() => {
     return [...exercises.value].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'))
@@ -25,6 +28,10 @@ export const useExerciseStore = defineStore('exercise', () => {
   })
 
   async function fetchExercises() {
+    if (authStore.isGuest) {
+      exercises.value = JSON.parse(localStorage.getItem(GUEST_EXERCISES_KEY)) || []
+      return
+    }
     try {
       const response = await apiClient.get('/exercises')
       exercises.value = response.data
@@ -34,6 +41,21 @@ export const useExerciseStore = defineStore('exercise', () => {
   }
 
   async function addExercise(name, muscleGroup) {
+    if (authStore.isGuest) {
+      const newExercise = {
+        _id: `guest_${new Date().getTime()}`,
+        name,
+        muscleGroup,
+        user: authStore.user._id,
+        isCustom: true, // Add isCustom flag for guest exercises
+      }
+      const guestData = JSON.parse(localStorage.getItem(GUEST_EXERCISES_KEY)) || []
+      guestData.push(newExercise)
+      localStorage.setItem(GUEST_EXERCISES_KEY, JSON.stringify(guestData))
+      exercises.value.push(newExercise)
+      toast.success(`動作 "${name}" 已新增！`)
+      return
+    }
     try {
       const response = await apiClient.post('/exercises', { name, muscleGroup })
       exercises.value.push(response.data)
@@ -47,6 +69,17 @@ export const useExerciseStore = defineStore('exercise', () => {
     const templateStore = useTemplateStore()
     const exerciseToDelete = exercises.value.find((ex) => ex._id === id)
     if (!exerciseToDelete) return
+
+    if (authStore.isGuest) {
+      let guestData = JSON.parse(localStorage.getItem(GUEST_EXERCISES_KEY)) || []
+      guestData = guestData.filter((ex) => ex._id !== id)
+      localStorage.setItem(GUEST_EXERCISES_KEY, JSON.stringify(guestData))
+      exercises.value = guestData
+      // Also need to handle cascading delete in templates for guest mode
+      await templateStore.removeExerciseFromAllTemplates(id)
+      toast.success(`動作 "${exerciseToDelete.name}" 已成功刪除。`)
+      return
+    }
 
     try {
       await apiClient.delete(`/exercises/${id}`)

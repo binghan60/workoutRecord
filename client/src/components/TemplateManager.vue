@@ -155,3 +155,10 @@ const confirmDeleteTemplate = (templateId, name) => {
   })
 }
 </script>
+
+<style scoped>
+:deep(.v-expansion-panel-text__wrapper) {
+  padding: 0 12px 8px;
+}
+</style>
+

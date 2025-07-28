@@ -29,10 +29,19 @@
             </v-expansion-panel-title>
             <v-expansion-panel-text>
               <v-list lines="one" density="compact">
-                <v-list-item v-for="exercise in group" :key="exercise.id" :title="exercise.name" class="px-0">
+                <v-list-item v-for="exercise in group" :key="exercise._id" :title="exercise.name" class="px-0">
                   <template v-slot:append>
-                    <v-btn v-if="exercise.isCustom" icon="mdi-delete" variant="text" color="grey" @click="confirmDeleteExercise(exercise)"></v-btn>
-                    <v-chip v-else size="small" variant="tonal">內建</v-chip>
+                    <v-chip :color="getExerciseChip(exercise).color" size="small" variant="tonal" class="mr-2">
+                      {{ getExerciseChip(exercise).text }}
+                    </v-chip>
+                    <v-btn
+                      icon="mdi-delete"
+                      variant="text"
+                      color="grey"
+                      :style="{ visibility: isDeletable(exercise) ? 'visible' : 'hidden' }"
+                      :disabled="!isDeletable(exercise)"
+                      @click="confirmDeleteExercise(exercise)"
+                    ></v-btn>
                   </template>
                 </v-list-item>
               </v-list>
@@ -49,40 +58,46 @@
 
 <script setup>
 import { ref } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import { useExerciseStore } from '@/stores/exercise'
 import { useModalStore } from '@/stores/modal'
 import { useTemplateStore } from '@/stores/template'
 import { getMuscleGroupColor } from '@/utils/colorUtils'
 
+const authStore = useAuthStore()
 const exerciseStore = useExerciseStore()
 const modalStore = useModalStore()
 const templateStore = useTemplateStore()
 
-// 添加表單引用
 const formRef = ref(null)
+const newExercise = ref({ name: '', group: '' })
+const rules = { required: (value) => !!value || '此欄位為必填' }
 
-const newExercise = ref({
-  name: '',
-  group: '',
-})
+const isDeletable = (exercise) => {
+  if (authStore.isGuest) {
+    // Guests can delete any exercise they see (which are only their own)
+    return true
+  }
+  // Logged-in users can only delete exercises they created
+  return exercise.user === authStore.user?._id
+}
 
-const rules = {
-  required: (value) => !!value || '此欄位為必填',
+const getExerciseChip = (exercise) => {
+  if (authStore.isGuest) {
+    return { text: '訪客', color: 'blue' }
+  }
+  if (exercise.user === authStore.user?._id) {
+    return { text: '自訂', color: 'green' }
+  }
+  return { text: '內建', color: 'grey' }
 }
 
 const handleAddExercise = async () => {
-  // 先驗證表單
   const { valid } = await formRef.value.validate()
-
   if (valid) {
-    // 表單驗證通過，執行新增
     exerciseStore.addExercise(newExercise.value.name, newExercise.value.group)
-
-    // 清空表單資料
     newExercise.value.name = ''
     newExercise.value.group = ''
-
-    // 重置表單驗證狀態
     formRef.value.reset()
   }
 }
@@ -92,9 +107,8 @@ const confirmDeleteExercise = (exercise) => {
   const affectedTemplates = []
   const deletedTemplates = []
 
-  // Check for consequences before showing the modal
   templateStore.templates.forEach((template) => {
-    const containsExercise = template.exercises.some((ex) => ex.name === exerciseName)
+    const containsExercise = template.exercises.some((ex) => ex.exercise === exercise._id)
     if (containsExercise) {
       if (template.exercises.length === 1) {
         deletedTemplates.push(template.name)
@@ -104,9 +118,7 @@ const confirmDeleteExercise = (exercise) => {
     }
   })
 
-  // Build the dynamic, itemized message
   let message = `您確定要刪除「${exerciseName}」嗎？`
-
   if (deletedTemplates.length > 0 || affectedTemplates.length > 0) {
     message += `\n\n此操作將導致以下後果：`
     if (deletedTemplates.length > 0) {
@@ -117,9 +129,14 @@ const confirmDeleteExercise = (exercise) => {
     }
   }
 
-  // Show the confirmation modal with the detailed message
   modalStore.showConfirmation('確認刪除', message, () => {
     exerciseStore.deleteExercise(exercise._id)
   })
 }
 </script>
+
+<style scoped>
+:deep(.v-expansion-panel-text__wrapper) {
+  padding: 0 12px 8px;
+}
+</style>

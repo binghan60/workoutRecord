@@ -23,7 +23,7 @@
     </v-dialog>
 
     <!-- Weekly Schedule Grid -->
-    <p class="text-center text-grey-darken-1 mb-6">點擊 <v-icon color="primary">mdi-plus-circle-outline</v-icon> 按鈕或從範本頁拖曳來新增訓練排程。</p>
+    <p class="text-center text-grey-darken-1 mb-6">點擊 <v-icon color="primary">mdi-plus-circle-outline</v-icon> 按鈕新增訓練排程。</p>
 
     <v-row>
       <v-col v-for="day in templateStore.daysOfWeek" :key="day" cols="12" md="4" lg="3">
@@ -59,13 +59,13 @@ const isModalOpen = ref(false)
 const selectedDay = ref(null) // This will store the Chinese day name for the dialog title
 
 const dayMap = {
-  '星期一': 'monday',
-  '星期二': 'tuesday',
-  '星期三': 'wednesday',
-  '星期四': 'thursday',
-  '星期五': 'friday',
-  '星期六': 'saturday',
-  '星期日': 'sunday',
+  星期一: 'monday',
+  星期二: 'tuesday',
+  星期三: 'wednesday',
+  星期四: 'thursday',
+  星期五: 'friday',
+  星期六: 'saturday',
+  星期日: 'sunday',
 }
 
 const isToday = (day) => {

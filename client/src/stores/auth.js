@@ -9,23 +9,28 @@ const toast = useToast()
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(JSON.parse(localStorage.getItem('user')) || null)
   const token = ref(localStorage.getItem('token') || null)
+  const isGuest = ref(JSON.parse(localStorage.getItem('isGuest')) || false)
   const router = useRouter()
 
-  const isAuthenticated = computed(() => !!token.value && !!user.value)
+  const isAuthenticated = computed(() => (!!token.value && !!user.value) || isGuest.value)
 
   function setAuthData(userData, authToken) {
     user.value = userData
     token.value = authToken
+    isGuest.value = false
     localStorage.setItem('user', JSON.stringify(userData))
     localStorage.setItem('token', authToken)
+    localStorage.removeItem('isGuest')
     apiClient.defaults.headers.common['Authorization'] = `Bearer ${authToken}`
   }
 
   function clearAuthData() {
     user.value = null
     token.value = null
-    // localStorage.removeItem('user')
+    isGuest.value = false
+    localStorage.removeItem('user')
     localStorage.removeItem('token')
+    localStorage.removeItem('isGuest')
     delete apiClient.defaults.headers.common['Authorization']
   }
 
@@ -60,6 +65,18 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  async function loginAsGuest() {
+    isGuest.value = true
+    user.value = { _id: 'guest', username: '訪客', email: 'guest@example.com' }
+    token.value = null
+    localStorage.setItem('isGuest', 'true')
+    localStorage.setItem('user', JSON.stringify(user.value))
+    localStorage.removeItem('token')
+    delete apiClient.defaults.headers.common['Authorization']
+    toast.success('以訪客身份登入')
+    await router.push('/')
+  }
+
   async function logout() {
     const username = user.value?.username || '使用者'
     clearAuthData()
@@ -69,6 +86,10 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function checkAuth() {
+    if (isGuest.value) {
+      user.value = JSON.parse(localStorage.getItem('user')) || { _id: 'guest', username: '訪客', email: 'guest@example.com' }
+      return
+    }
     if (token.value) {
       try {
         apiClient.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
@@ -84,7 +105,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  if (token.value && !user.value) {
+  if (token.value || isGuest.value) {
     checkAuth()
   }
 
@@ -92,9 +113,11 @@ export const useAuthStore = defineStore('auth', () => {
     user,
     token,
     isAuthenticated,
+    isGuest,
     login,
     register,
     logout,
     checkAuth,
+    loginAsGuest,
   }
 })

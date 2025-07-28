@@ -13,7 +13,7 @@
           <v-card-title class="d-flex justify-space-between align-center">
             <div>
               <p class="text-h5">{{ workout.name }}</p>
-              <p class="text-caption">{{ formatDate(workout.createdAt) }}</p>
+              <p class="text-caption">{{ formatDate(workout.date || workout.createdAt) }}</p>
             </div>
             <div>
               <v-btn variant="text" @click="toggleAll(workout._id, workout.exercises.length)">
@@ -123,6 +123,7 @@ const getExerciseDetails = (exerciseName) => {
 }
 
 const formatDate = (dateString) => {
+  if (!dateString) return '日期無效'
   const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }
   return new Date(dateString).toLocaleDateString('zh-TW', options)
 }

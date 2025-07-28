@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -55,12 +56,12 @@ const router = createRouter({
 })
 
 router.beforeEach((to, from, next) => {
-  // Simple token check for routing logic
-  const token = localStorage.getItem('token')
+  const authStore = useAuthStore()
+  const isAuthenticated = authStore.isAuthenticated // This now correctly checks for token or guest status
 
-  if (to.meta.requiresAuth && !token) {
+  if (to.meta.requiresAuth && !isAuthenticated) {
     next('/login')
-  } else if (to.meta.requiresGuest && token) {
+  } else if (to.meta.requiresGuest && isAuthenticated) {
     next('/')
   } else {
     next()

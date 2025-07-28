@@ -20,10 +20,14 @@
           <v-btn type="submit" color="primary" block size="large" :loading="isSubmitting || uiStore.isLoading"> 登入 </v-btn>
         </Form>
       </v-card-text>
-      <v-card-actions class="justify-center">
+      <v-card-actions class="justify-center flex-column">
         <p class="text-center">
           還沒有帳號？
           <router-link to="/register" class="text-primary font-weight-bold"> 立即註冊 </router-link>
+        </p>
+        <p class="text-center mt-4">
+          或者
+          <a href="#" @click.prevent="handleGuestLogin" class="text-secondary font-weight-bold"> 以訪客身份繼續 </a>
         </p>
       </v-card-actions>
     </v-card>
@@ -59,6 +63,10 @@ onMounted(async () => {
 
 const handleLogin = (values) => {
   authStore.login(values)
+}
+
+const handleGuestLogin = () => {
+  authStore.loginAsGuest()
 }
 </script>
 

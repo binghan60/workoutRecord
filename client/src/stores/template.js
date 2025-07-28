@@ -2,8 +2,11 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useToast } from 'vue-toastification'
 import apiClient from '@/api'
+import { useAuthStore } from './auth'
 
 const toast = useToast()
+const GUEST_TEMPLATES_KEY = 'guest_templates'
+const GUEST_SCHEDULE_KEY = 'guest_schedule'
 
 // Helper function to convert populated schedule back to ID-only schedule
 const dehydrateSchedule = (populatedSchedule) => {
@@ -18,14 +21,19 @@ const dehydrateSchedule = (populatedSchedule) => {
 
 export const useTemplateStore = defineStore('template', () => {
   const templates = ref([])
-  const schedule = ref({}) // This will hold the populated schedule from the backend
+  const schedule = ref({}) // This will hold the populated schedule
   const daysOfWeek = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日']
+  const authStore = useAuthStore()
 
   const getTemplateById = computed(() => {
     return (templateId) => templates.value.find((t) => t._id === templateId)
   })
 
   async function fetchTemplates() {
+    if (authStore.isGuest) {
+      templates.value = JSON.parse(localStorage.getItem(GUEST_TEMPLATES_KEY)) || []
+      return
+    }
     try {
       const response = await apiClient.get('/templates')
       templates.value = response.data
@@ -35,6 +43,19 @@ export const useTemplateStore = defineStore('template', () => {
   }
 
   async function addTemplate(templateData) {
+    if (authStore.isGuest) {
+      const newTemplate = {
+        ...templateData,
+        _id: `guest_${new Date().getTime()}`,
+        user: authStore.user._id,
+      }
+      const guestData = JSON.parse(localStorage.getItem(GUEST_TEMPLATES_KEY)) || []
+      guestData.unshift(newTemplate)
+      localStorage.setItem(GUEST_TEMPLATES_KEY, JSON.stringify(guestData))
+      templates.value.unshift(newTemplate)
+      toast.success(`課表 "${templateData.name}" 已建立！`)
+      return
+    }
     try {
       const response = await apiClient.post('/templates', templateData)
       templates.value.unshift(response.data)
@@ -45,17 +66,28 @@ export const useTemplateStore = defineStore('template', () => {
   }
 
   async function updateTemplate(templateId, templateData) {
+    if (authStore.isGuest) {
+      let guestData = JSON.parse(localStorage.getItem(GUEST_TEMPLATES_KEY)) || []
+      const index = guestData.findIndex((t) => t._id === templateId)
+      if (index !== -1) {
+        guestData[index] = { ...guestData[index], ...templateData }
+        localStorage.setItem(GUEST_TEMPLATES_KEY, JSON.stringify(guestData))
+        templates.value = guestData
+        // Also update in schedule if present
+        await fetchSchedule() // reload schedule to get latest
+      }
+      toast.success(`課表 "${templateData.name}" 已更新！`)
+      return
+    }
     try {
       const response = await apiClient.put(`/templates/${templateId}`, templateData)
       const updatedTemplate = response.data
 
-      // 1. Update the main templates array
       const index = templates.value.findIndex((t) => t._id === templateId)
       if (index !== -1) {
         templates.value[index] = updatedTemplate
       }
 
-      // 2. CRITICAL: Also update the template if it exists in the populated schedule
       for (const day in schedule.value) {
         if (Array.isArray(schedule.value[day])) {
           const scheduleIndex = schedule.value[day].findIndex((t) => t._id === templateId)
@@ -72,13 +104,32 @@ export const useTemplateStore = defineStore('template', () => {
   }
 
   async function deleteTemplate(templateId) {
+    if (authStore.isGuest) {
+      let guestData = JSON.parse(localStorage.getItem(GUEST_TEMPLATES_KEY)) || []
+      const deletedTemplate = guestData.find((t) => t._id === templateId)
+      if (deletedTemplate) {
+        guestData = guestData.filter((t) => t._id !== templateId)
+        localStorage.setItem(GUEST_TEMPLATES_KEY, JSON.stringify(guestData))
+        templates.value = guestData
+
+        // Remove from schedule
+        let guestSchedule = JSON.parse(localStorage.getItem(GUEST_SCHEDULE_KEY)) || {}
+        for (const day in guestSchedule) {
+          guestSchedule[day] = guestSchedule[day].filter((id) => id !== templateId)
+        }
+        localStorage.setItem(GUEST_SCHEDULE_KEY, JSON.stringify(guestSchedule))
+        await fetchSchedule() // reload schedule
+
+        toast.success(`課表 "${deletedTemplate.name}" 已刪除！`)
+      }
+      return
+    }
     try {
       await apiClient.delete(`/templates/${templateId}`)
       const index = templates.value.findIndex((t) => t._id === templateId)
       if (index !== -1) {
         const deletedTemplateName = templates.value[index].name
         templates.value.splice(index, 1)
-        // Also remove from local schedule state before updating backend
         daysOfWeek.forEach((day) => {
           if (schedule.value[day]) {
             const scheduleIndex = schedule.value[day].findIndex((t) => t._id === templateId)
@@ -96,6 +147,18 @@ export const useTemplateStore = defineStore('template', () => {
   }
 
   async function fetchSchedule() {
+    if (authStore.isGuest) {
+      const guestScheduleIds = JSON.parse(localStorage.getItem(GUEST_SCHEDULE_KEY)) || {}
+      const guestTemplates = JSON.parse(localStorage.getItem(GUEST_TEMPLATES_KEY)) || []
+      const populatedSchedule = {}
+      for (const day in guestScheduleIds) {
+        populatedSchedule[day] = guestScheduleIds[day]
+          .map((id) => guestTemplates.find((t) => t._id === id))
+          .filter(Boolean) // Filter out any templates that might have been deleted
+      }
+      schedule.value = populatedSchedule
+      return
+    }
     try {
       const response = await apiClient.get('/schedule')
       schedule.value = response.data
@@ -105,6 +168,12 @@ export const useTemplateStore = defineStore('template', () => {
   }
 
   async function updateScheduleOnBackend() {
+    if (authStore.isGuest) {
+      const idOnlySchedule = dehydrateSchedule(schedule.value)
+      localStorage.setItem(GUEST_SCHEDULE_KEY, JSON.stringify(idOnlySchedule))
+      // No need to refetch, local state is the source of truth
+      return
+    }
     try {
       const idOnlySchedule = dehydrateSchedule(schedule.value)
       const response = await apiClient.put('/schedule', idOnlySchedule)
@@ -119,22 +188,17 @@ export const useTemplateStore = defineStore('template', () => {
     const template = getTemplateById.value(templateId)
     if (!template) return
 
-    // If the schedule for the day doesn't exist, initialize it as an empty array.
     if (!schedule.value[day]) {
       schedule.value[day] = []
     }
 
-    // Get the current list of IDs for the day
     const currentIds = schedule.value[day].map((t) => t._id)
     if (currentIds.includes(templateId)) {
       toast.warning('這個課表已經在排程中了')
       return
     }
 
-    // Optimistically add the full template object for immediate UI update
     schedule.value[day].push(template)
-
-    // Then, trigger the backend update
     updateScheduleOnBackend()
     toast.success(`已將 "${template.name}" 加入 ${day} 的排程`)
   }
@@ -142,11 +206,7 @@ export const useTemplateStore = defineStore('template', () => {
   function removeTemplateFromSchedule(day, index) {
     if (!schedule.value[day] || schedule.value[day][index] === undefined) return
     const template = schedule.value[day][index]
-
-    // Optimistically remove from UI
     schedule.value[day].splice(index, 1)
-
-    // Then, trigger the backend update
     updateScheduleOnBackend()
     toast.info(`已從 ${day} 的排程中移除 "${template.name}"`)
   }
@@ -156,6 +216,19 @@ export const useTemplateStore = defineStore('template', () => {
     const [movedItem] = schedule.value[day].splice(oldIndex, 1)
     schedule.value[day].splice(newIndex, 0, movedItem)
     updateScheduleOnBackend()
+  }
+
+  // New function for guest mode cascading delete
+  async function removeExerciseFromAllTemplates(exerciseId) {
+    if (!authStore.isGuest) return
+
+    let guestTemplates = JSON.parse(localStorage.getItem(GUEST_TEMPLATES_KEY)) || []
+    guestTemplates.forEach((template) => {
+      template.exercises = template.exercises.filter((ex) => ex.exercise !== exerciseId)
+    })
+    localStorage.setItem(GUEST_TEMPLATES_KEY, JSON.stringify(guestTemplates))
+    templates.value = guestTemplates
+    await fetchSchedule() // Re-populate schedule with updated templates
   }
 
   return {
@@ -171,6 +244,7 @@ export const useTemplateStore = defineStore('template', () => {
     addTemplateToSchedule,
     removeTemplateFromSchedule,
     updateScheduleOrder,
+    removeExerciseFromAllTemplates, // Expose the new function
   }
 })
 

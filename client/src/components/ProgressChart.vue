@@ -46,7 +46,7 @@ const chartData = computed(() => {
       })
       if (totalVolume > 0) {
         history.push({
-          date: new Date(workout.createdAt).getTime(),
+          date: new Date(workout.date || workout.createdAt).getTime(), // FIX: Use workout.date for guest mode
           volume: totalVolume,
           maxWeight: maxWeight,
           estimated1RM: Math.round(estimated1RM * 100) / 100,
