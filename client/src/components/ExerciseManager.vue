@@ -19,29 +19,33 @@
 
   <!-- 動作列表 -->
   <v-card>
-    <v-card-title class="text-h6">我的動作清單</v-card-title>
+    <v-card-title class="d-flex justify-space-between align-center">
+      <span class="text-h6">我的動作清單</span>
+      <v-switch
+        v-if="!authStore.isGuest"
+        :model-value="uiStore.showBuiltInExercises"
+        @update:model-value="uiStore.toggleShowBuiltInExercises"
+        label="顯示內建動作"
+        color="primary"
+        dense
+        hide-details
+      ></v-switch>
+    </v-card-title>
     <v-card-text>
-      <div v-if="Object.keys(exerciseStore.groupedExercises).length > 0">
+      <div v-if="displayedExercises.length > 0">
         <v-expansion-panels multiple>
-          <v-expansion-panel v-for="(group, groupName) in exerciseStore.groupedExercises" :key="groupName">
-            <v-expansion-panel-title :style="{ backgroundColor: getMuscleGroupColor(groupName) }">
-              {{ groupName }}
+          <v-expansion-panel v-for="group in displayedExercises" :key="group.groupName">
+            <v-expansion-panel-title class="group-title">
+              {{ group.groupName }}
             </v-expansion-panel-title>
             <v-expansion-panel-text>
               <v-list lines="one" density="compact">
-                <v-list-item v-for="exercise in group" :key="exercise._id" :title="exercise.name" class="px-0">
+                <v-list-item v-for="exercise in group.exercises" :key="exercise._id" :title="exercise.name" class="px-0 exercise-option">
                   <template v-slot:append>
                     <v-chip :color="getExerciseChip(exercise).color" size="small" variant="tonal" class="mr-2">
                       {{ getExerciseChip(exercise).text }}
                     </v-chip>
-                    <v-btn
-                      icon="mdi-delete"
-                      variant="text"
-                      color="grey"
-                      :style="{ visibility: isDeletable(exercise) ? 'visible' : 'hidden' }"
-                      :disabled="!isDeletable(exercise)"
-                      @click="confirmDeleteExercise(exercise)"
-                    ></v-btn>
+                    <v-btn icon="mdi-delete" variant="text" color="grey" :style="{ visibility: isDeletable(exercise) ? 'visible' : 'hidden' }" :disabled="!isDeletable(exercise)" @click="confirmDeleteExercise(exercise)"></v-btn>
                   </template>
                 </v-list-item>
               </v-list>
@@ -50,35 +54,39 @@
         </v-expansion-panels>
       </div>
       <div v-else class="text-center text-grey-darken-1 py-8">
-        <p>尚未新增任何動作。</p>
+        <p>尚無符合條件的動作。</p>
+        <p v-if="!uiStore.showBuiltInExercises">可嘗試開啟「顯示內建動作」。</p>
       </div>
     </v-card-text>
   </v-card>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useExerciseStore } from '@/stores/exercise'
 import { useModalStore } from '@/stores/modal'
 import { useTemplateStore } from '@/stores/template'
-import { getMuscleGroupColor } from '@/utils/colorUtils'
+import { useUIStore } from '@/stores/ui'
 
 const authStore = useAuthStore()
 const exerciseStore = useExerciseStore()
 const modalStore = useModalStore()
 const templateStore = useTemplateStore()
+const uiStore = useUIStore()
 
 const formRef = ref(null)
 const newExercise = ref({ name: '', group: '' })
 const rules = { required: (value) => !!value || '此欄位為必填' }
 
+const displayedExercises = computed(() => {
+  return uiStore.showBuiltInExercises ? exerciseStore.groupedAllExercises : exerciseStore.groupedCustomExercises
+})
+
 const isDeletable = (exercise) => {
   if (authStore.isGuest) {
-    // Guests can delete any exercise they see (which are only their own)
     return true
   }
-  // Logged-in users can only delete exercises they created
   return exercise.user === authStore.user?._id
 }
 
@@ -136,7 +144,32 @@ const confirmDeleteExercise = (exercise) => {
 </script>
 
 <style scoped>
-:deep(.v-expansion-panel-text__wrapper) {
-  padding: 0 12px 8px;
+.group-title {
+  background-color: hsla(174, 42%, 51%, 0.15);
+  font-weight: bold;
+}
+
+.exercise-option:hover {
+  background-color: rgba(77, 182, 172, 0.1);
+}
+
+.exercise-option.selected {
+  border-left: 4px solid rgb(77, 182, 172);
+  background-color: rgba(77, 182, 172, 0.05);
+}
+
+.v-chip.green {
+  background-color: rgba(76, 175, 80, 0.2) !important;
+  color: rgb(56, 142, 60) !important;
+}
+
+.v-chip.blue {
+  background-color: rgba(33, 150, 243, 0.2) !important;
+  color: rgb(30, 136, 229) !important;
+}
+
+.v-chip.grey {
+  background-color: rgba(158, 158, 158, 0.2) !important;
+  color: #757575 !important;
 }
 </style>

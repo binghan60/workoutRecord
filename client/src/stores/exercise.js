@@ -8,23 +8,45 @@ import { useAuthStore } from './auth'
 const toast = useToast()
 const GUEST_EXERCISES_KEY = 'guest_exercises'
 
+// Helper function to group a list of exercises
+const groupAndSortExercises = (exerciseList) => {
+  const groups = exerciseList.reduce((acc, exercise) => {
+    const groupName = exercise.muscleGroup || '未分類'
+    if (!acc[groupName]) {
+      acc[groupName] = []
+    }
+    acc[groupName].push(exercise)
+    return acc
+  }, {})
+
+  return Object.keys(groups)
+    .sort((a, b) => a.localeCompare(b, 'zh-Hant'))
+    .map((groupName) => ({
+      groupName,
+      exercises: groups[groupName],
+    }))
+}
+
 export const useExerciseStore = defineStore('exercise', () => {
   const exercises = ref([])
   const authStore = useAuthStore()
 
-  const allExercises = computed(() => {
+  const _stablySortedExercises = computed(() => {
     return [...exercises.value].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'))
   })
 
-  const groupedExercises = computed(() => {
-    return allExercises.value.reduce((acc, exercise) => {
-      const group = exercise.muscleGroup || '未分類'
-      if (!acc[group]) {
-        acc[group] = []
-      }
-      acc[group].push(exercise)
-      return acc
-    }, {})
+  // Provides ALL exercises (built-in + custom)
+  const groupedAllExercises = computed(() => {
+    return groupAndSortExercises(_stablySortedExercises.value)
+  })
+
+  // Provides ONLY custom exercises
+  const groupedCustomExercises = computed(() => {
+    const customList = _stablySortedExercises.value.filter((ex) => {
+      if (authStore.isGuest) return true // All guest exercises are considered custom
+      return ex.user === authStore.user?._id
+    })
+    return groupAndSortExercises(customList)
   })
 
   async function fetchExercises() {
@@ -47,7 +69,7 @@ export const useExerciseStore = defineStore('exercise', () => {
         name,
         muscleGroup,
         user: authStore.user._id,
-        isCustom: true, // Add isCustom flag for guest exercises
+        isCustom: true,
       }
       const guestData = JSON.parse(localStorage.getItem(GUEST_EXERCISES_KEY)) || []
       guestData.push(newExercise)
@@ -75,7 +97,6 @@ export const useExerciseStore = defineStore('exercise', () => {
       guestData = guestData.filter((ex) => ex._id !== id)
       localStorage.setItem(GUEST_EXERCISES_KEY, JSON.stringify(guestData))
       exercises.value = guestData
-      // Also need to handle cascading delete in templates for guest mode
       await templateStore.removeExerciseFromAllTemplates(id)
       toast.success(`動作 "${exerciseToDelete.name}" 已成功刪除。`)
       return
@@ -83,18 +104,20 @@ export const useExerciseStore = defineStore('exercise', () => {
 
     try {
       await apiClient.delete(`/exercises/${id}`)
-
-      // The backend handles the cascading delete. We just need to refetch
-      // to ensure our frontend state is in sync with the database.
       await fetchExercises()
       await templateStore.fetchTemplates()
-
       toast.success(`動作 "${exerciseToDelete.name}" 已成功刪除。`)
     } catch (error) {
       toast.error(error.response?.data?.message || '刪除動作失敗')
     }
   }
 
-  return { allExercises, groupedExercises, fetchExercises, addExercise, deleteExercise }
+  return {
+    groupedAllExercises,
+    groupedCustomExercises,
+    fetchExercises,
+    addExercise,
+    deleteExercise,
+  }
 })
 

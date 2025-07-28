@@ -42,10 +42,34 @@ export const useUIStore = defineStore('ui', () => {
     }
   }
 
+  // Built-in Exercises Visibility Management
+  const showBuiltInExercises = ref(JSON.parse(localStorage.getItem('showBuiltInExercises') ?? 'true'))
+  const showBuiltInTemplates = ref(JSON.parse(localStorage.getItem('showBuiltInTemplates') ?? 'true'))
+
+  function toggleShowBuiltInExercises() {
+    showBuiltInExercises.value = !showBuiltInExercises.value
+  }
+
+  function toggleShowBuiltInTemplates() {
+    showBuiltInTemplates.value = !showBuiltInTemplates.value
+  }
+
+  watch(showBuiltInExercises, (newValue) => {
+    localStorage.setItem('showBuiltInExercises', JSON.stringify(newValue))
+  })
+
+  watch(showBuiltInTemplates, (newValue) => {
+    localStorage.setItem('showBuiltInTemplates', JSON.stringify(newValue))
+  })
+
   return {
     theme,
     toggleTheme,
     isLoading,
     withLoading,
+    showBuiltInExercises,
+    toggleShowBuiltInExercises,
+    showBuiltInTemplates,
+    toggleShowBuiltInTemplates,
   }
 })

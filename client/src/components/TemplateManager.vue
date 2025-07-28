@@ -8,14 +8,28 @@
           <v-form ref="formRef" @submit.prevent="handleAddTemplate">
             <v-text-field v-model="templateName" label="課表名稱" :rules="[rules.required]" variant="outlined" class="mb-4"></v-text-field>
 
-            <h3 class="text-h6 mb-2">選擇動作</h3>
+            <div class="d-flex justify-space-between align-center mb-2">
+              <h3 class="text-h6">選擇動作</h3>
+              <v-switch
+                v-if="!authStore.isGuest"
+                :model-value="uiStore.showBuiltInTemplates"
+                @update:model-value="uiStore.toggleShowBuiltInTemplates"
+                label="顯示內建動作"
+                color="primary"
+                dense
+                hide-details
+              ></v-switch>
+            </div>
+
             <v-expansion-panels multiple class="mb-4">
-              <v-expansion-panel v-for="(group, groupName) in exerciseStore.groupedExercises" :key="groupName">
-                <v-expansion-panel-title>{{ groupName }}</v-expansion-panel-title>
+              <v-expansion-panel v-for="group in displayedExercises" :key="group.groupName">
+                <v-expansion-panel-title class="group-title">
+                  {{ group.groupName }}
+                </v-expansion-panel-title>
                 <v-expansion-panel-text>
                   <v-list>
-                    <div v-for="exercise in group" :key="exercise._id">
-                      <v-list-item class="px-0" @click="toggleExercise(exercise)">
+                    <div v-for="exercise in group.exercises" :key="exercise._id">
+                      <v-list-item class="px-0 exercise-option" :class="{ selected: isSelected(exercise) }" @click="toggleExercise(exercise)">
                         <template v-slot:prepend>
                           <v-checkbox-btn :model-value="isSelected(exercise)"></v-checkbox-btn>
                         </template>
@@ -44,8 +58,12 @@
                 </v-expansion-panel-text>
               </v-expansion-panel>
             </v-expansion-panels>
+            <div v-if="displayedExercises.length === 0" class="text-center text-grey-darken-1 py-8">
+              <p>尚無符合條件的動作。</p>
+              <p v-if="!uiStore.showBuiltInTemplates">可嘗試開啟「顯示內建動作」。</p>
+            </div>
 
-            <v-btn type="submit" color="primary" block size="large">儲存課表</v-btn>
+            <v-btn type="submit" color="primary" block size="large" :disabled="displayedExercises.length === 0">儲存課表</v-btn>
           </v-form>
         </v-card-text>
       </v-card>
@@ -76,17 +94,21 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import { useTemplateStore } from '@/stores/template'
 import { useExerciseStore } from '@/stores/exercise'
 import { useModalStore } from '@/stores/modal'
 import { useToast } from 'vue-toastification'
+import { useUIStore } from '@/stores/ui'
 import TemplateEditModal from './TemplateEditModal.vue'
 
 const toast = useToast()
+const authStore = useAuthStore()
 const templateStore = useTemplateStore()
 const exerciseStore = useExerciseStore()
 const modalStore = useModalStore()
+const uiStore = useUIStore()
 
 const templateName = ref('')
 const selectedExercises = ref([])
@@ -95,6 +117,10 @@ const formRef = ref(null)
 const rules = {
   required: (value) => !!value || '此欄位為必填',
 }
+
+const displayedExercises = computed(() => {
+  return uiStore.showBuiltInTemplates ? exerciseStore.groupedAllExercises : exerciseStore.groupedCustomExercises
+})
 
 const isSelected = (exercise) => selectedExercises.value.some((ex) => ex.id === exercise._id)
 
@@ -130,8 +156,11 @@ const handleAddTemplate = async () => {
   }
 
   const exercisesForAPI = JSON.parse(JSON.stringify(selectedExercises.value)).map((ex) => {
-    delete ex.id
-    return ex
+    const { id, ...rest } = ex // Omit the temporary 'id' field
+    return {
+      ...rest,
+      exercise: ex.id, // Ensure the exercise ID is correctly named
+    }
   })
 
   try {
@@ -157,6 +186,20 @@ const confirmDeleteTemplate = (templateId, name) => {
 </script>
 
 <style scoped>
+.group-title {
+  background-color: hsla(174, 42%, 51%, 0.15);
+  font-weight: bold;
+}
+
+.exercise-option:hover {
+  background-color: rgba(77, 182, 172, 0.1);
+}
+
+.exercise-option.selected {
+  border-left: 4px solid rgb(77, 182, 172);
+  background-color: rgba(77, 182, 172, 0.05);
+}
+
 :deep(.v-expansion-panel-text__wrapper) {
   padding: 0 12px 8px;
 }
