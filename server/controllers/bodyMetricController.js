@@ -16,8 +16,12 @@ export const addOrUpdateRecord = async (req, res) => {
     const { date, ...metrics } = req.body
     const userId = req.user.id
 
+    // Normalize date to the start of the day
+    const recordDate = new Date(date)
+    recordDate.setHours(0, 0, 0, 0)
+
     // Find a record for the given date and user
-    let record = await BodyMetric.findOne({ date: new Date(date).setHours(0, 0, 0, 0), user: userId })
+    let record = await BodyMetric.findOne({ date: recordDate, user: userId })
 
     if (record) {
       // If record exists, update it with new non-null values
@@ -32,7 +36,7 @@ export const addOrUpdateRecord = async (req, res) => {
       // If record doesn't exist, create a new one
       const newRecord = new BodyMetric({
         ...metrics,
-        date,
+        date: recordDate,
         user: userId,
       })
       await newRecord.save()
