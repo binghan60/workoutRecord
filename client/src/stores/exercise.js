@@ -35,6 +35,8 @@ export const useExerciseStore = defineStore('exercise', () => {
     return [...exercises.value].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'))
   })
 
+  const allExercises = computed(() => _stablySortedExercises.value)
+
   // Provides ALL exercises (built-in + custom)
   const groupedAllExercises = computed(() => {
     return groupAndSortExercises(_stablySortedExercises.value)
@@ -113,6 +115,7 @@ export const useExerciseStore = defineStore('exercise', () => {
   }
 
   return {
+    allExercises,
     groupedAllExercises,
     groupedCustomExercises,
     fetchExercises,

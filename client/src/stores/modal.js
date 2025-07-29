@@ -53,7 +53,7 @@ export const useModalStore = defineStore('modal', () => {
   }
 
   function showTemplateEditModal(template) {
-    templateToEdit.value = template
+    templateToEdit.value = JSON.parse(JSON.stringify(template))
     isTemplateEditModalOpen.value = true
   }
 

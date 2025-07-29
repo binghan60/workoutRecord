@@ -10,14 +10,14 @@
             <v-col cols="12" md="6">
               <h3 class="text-h6 mb-2">選擇動作</h3>
               <v-expansion-panels multiple class="mb-4" style="max-height: 400px; overflow-y: auto">
-                <v-expansion-panel v-for="(group, groupName) in exerciseStore.groupedExercises" :key="groupName">
+                <v-expansion-panel v-for="group in exerciseStore.groupedAllExercises" :key="group.groupName">
                   <v-expansion-panel-title>
-                    {{ groupName }}
-                    <v-chip v-if="countSelectedInGroup(groupName) > 0" color="primary" size="small" class="ml-2">{{ countSelectedInGroup(groupName) }}</v-chip>
+                    {{ group.groupName }}
+                    <v-chip v-if="countSelectedInGroup(group.groupName) > 0" color="primary" size="small" class="ml-2">{{ countSelectedInGroup(group.groupName) }}</v-chip>
                   </v-expansion-panel-title>
                   <v-expansion-panel-text>
                     <v-list>
-                      <div v-for="exercise in group" :key="exercise._id">
+                      <div v-for="exercise in group.exercises" :key="exercise._id">
                         <v-list-item class="px-0" @click="toggleExercise(exercise)">
                           <template v-slot:prepend>
                             <v-checkbox-btn :model-value="isSelected(exercise)"></v-checkbox-btn>
@@ -110,37 +110,46 @@ const rules = {
 
 // Watch for template changes and initialize form
 watch(
-  [() => modalStore.templateToEdit, () => exerciseStore.allExercises],
-  ([newTemplate, allExercises]) => {
-    if (newTemplate && allExercises && allExercises.length > 0) {
-      templateId.value = newTemplate._id
-      templateName.value = newTemplate.name
+  () => modalStore.isTemplateEditModalOpen,
+  (isOpen) => {
+    if (isOpen && modalStore.templateToEdit) {
+      // Ensure exercises are loaded before processing
+      exerciseStore.fetchExercises().then(() => {
+        const newTemplate = modalStore.templateToEdit
+        const allExercises = exerciseStore.allExercises
 
-      const exerciseMap = new Map(allExercises.map((e) => [e.name, e]))
+        if (newTemplate && allExercises.length > 0) {
+          templateId.value = newTemplate._id
+          templateName.value = newTemplate.name
 
-      selectedExercises.value = (newTemplate.exercises || [])
-        .map((templateExercise, index) => {
-          const fullExercise = exerciseMap.get(templateExercise.name)
-          if (fullExercise) {
-            return {
-              ...templateExercise,
-              id: fullExercise._id, // Use real _id for keying
-              order: index, // Preserve initial order
-            }
-          }
-          return null
-        })
-        .filter(Boolean)
+          const exerciseMap = new Map(allExercises.map((e) => [e.name, e]))
+
+          selectedExercises.value = (newTemplate.exercises || [])
+            .map((templateExercise, index) => {
+              const fullExercise = exerciseMap.get(templateExercise.name)
+              if (fullExercise) {
+                return {
+                  ...templateExercise,
+                  id: fullExercise._id, // Use the real _id for unique keying
+                  order: index, // Preserve the original order
+                }
+              }
+              return null
+            })
+            .filter(Boolean)
+        }
+      })
     }
   },
-  { deep: true, immediate: true },
+  { immediate: true },
 )
 
 // Count selected exercises in each group for display
 const countSelectedInGroup = (groupName) => {
-  const groupExercises = exerciseStore.groupedExercises[groupName] || []
+  const group = exerciseStore.groupedAllExercises.find((g) => g.groupName === groupName)
+  if (!group) return 0
   const selectedIds = new Set(selectedExercises.value.map((ex) => ex.id))
-  return groupExercises.filter((ex) => selectedIds.has(ex._id)).length
+  return group.exercises.filter((ex) => selectedIds.has(ex._id)).length
 }
 
 // Check if an exercise is selected
