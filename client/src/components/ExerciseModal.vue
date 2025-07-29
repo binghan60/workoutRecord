@@ -4,11 +4,11 @@
       <v-card-title class="text-h5">選擇動作</v-card-title>
       <v-card-text>
         <v-list>
-          <template v-for="(group, groupName) in groupedExercises" :key="groupName">
-            <v-list-subheader>{{ groupName }}</v-list-subheader>
-            <v-list-item v-for="exercise in group" :key="exercise._id" :title="exercise.name" @click="selectExercise(exercise._id)">
+          <template v-for="group in groupedExercises" :key="group.groupName">
+            <v-list-subheader>{{ group.groupName }}</v-list-subheader>
+            <v-list-item v-for="exercise in group.exercises" :key="exercise._id" :title="exercise.name" @click="selectExercise(exercise._id)">
               <template v-slot:prepend>
-                <v-icon :color="getMuscleGroupColor(groupName)">mdi-circle-small</v-icon>
+                <v-icon :color="getMuscleGroupColor(group.groupName)">mdi-circle-small</v-icon>
               </template>
             </v-list-item>
           </template>
@@ -31,7 +31,7 @@ import { getMuscleGroupColor } from '@/utils/colorUtils'
 const modalStore = useModalStore()
 const exerciseStore = useExerciseStore()
 
-const groupedExercises = computed(() => exerciseStore.groupedExercises)
+const groupedExercises = computed(() => exerciseStore.groupedAllExercises)
 
 const selectExercise = (exerciseId) => {
   modalStore.selectedExerciseId = exerciseId
