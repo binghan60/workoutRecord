@@ -44,10 +44,7 @@ export const useExerciseStore = defineStore('exercise', () => {
 
   // Provides ONLY custom exercises
   const groupedCustomExercises = computed(() => {
-    const customList = _stablySortedExercises.value.filter((ex) => {
-      if (authStore.isGuest) return true // All guest exercises are considered custom
-      return ex.user === authStore.user?._id
-    })
+    const customList = _stablySortedExercises.value.filter((ex) => ex.isCustom)
     return groupAndSortExercises(customList)
   })
 
@@ -58,7 +55,8 @@ export const useExerciseStore = defineStore('exercise', () => {
     }
     try {
       const response = await apiClient.get('/exercises')
-      exercises.value = response.data
+      // Ensure every exercise has the isCustom property for consistent filtering
+      exercises.value = response.data.map((ex) => ({ ...ex, isCustom: ex.isCustom || false }))
     } catch (error) {
       toast.error('無法載入訓練動作')
     }
@@ -123,4 +121,3 @@ export const useExerciseStore = defineStore('exercise', () => {
     deleteExercise,
   }
 })
-
