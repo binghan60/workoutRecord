@@ -2,7 +2,7 @@
   <v-dialog v-model="modalStore.isOpen" max-width="500px" persistent>
     <v-card>
       <v-card-title class="text-h5">{{ modalStore.title }}</v-card-title>
-      <v-card-text style="white-space: pre-wrap;">{{ modalStore.message }}</v-card-text>
+      <v-card-text v-html="modalStore.message"></v-card-text>
       <v-card-actions>
         <v-spacer></v-spacer>
         <v-btn color="grey-darken-1" text @click="modalStore.hideConfirmation">取消</v-btn>
