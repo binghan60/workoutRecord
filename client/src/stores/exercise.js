@@ -1,9 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useToast } from 'vue-toastification'
-import apiClient from '@/api'
 import { useTemplateStore } from './template'
 import { useAuthStore } from './auth'
+import { createDataService } from '@/utils/dataService'
+import cacheManager from '@/utils/cacheManager'
 
 const toast = useToast()
 const GUEST_EXERCISES_KEY = 'guest_exercises'
@@ -30,6 +31,16 @@ const groupAndSortExercises = (exerciseList) => {
 export const useExerciseStore = defineStore('exercise', () => {
   const exercises = ref([])
   const authStore = useAuthStore()
+  const isLoading = ref(false)
+  const lastFetchTime = ref(null)
+
+  // 創建數據服務實例
+  const dataService = computed(() => createDataService(authStore, {
+    storageKey: GUEST_EXERCISES_KEY,
+    apiEndpoint: '/exercises',
+    cacheKey: 'exercises',
+    cacheTTL: 10 * 60 * 1000 // 動作數據緩存 10 分鐘
+  }))
 
   const _stablySortedExercises = computed(() => {
     return [...exercises.value].sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'))
@@ -48,67 +59,72 @@ export const useExerciseStore = defineStore('exercise', () => {
     return groupAndSortExercises(customList)
   })
 
-  async function fetchExercises() {
-    if (authStore.isGuest) {
-      exercises.value = JSON.parse(localStorage.getItem(GUEST_EXERCISES_KEY)) || []
-      return
-    }
+  async function fetchExercises(forceRefresh = false) {
+    if (isLoading.value) return // 防止重複請求
+    
+    isLoading.value = true
     try {
-      const response = await apiClient.get('/exercises')
+      let data
+      if (forceRefresh) {
+        data = await dataService.value.forceRefresh()
+      } else {
+        data = await dataService.value.fetchAll()
+      }
+      
       // Ensure every exercise has the isCustom property for consistent filtering
-      exercises.value = response.data.map((ex) => ({ ...ex, isCustom: ex.isCustom || false }))
+      exercises.value = data.map((ex) => ({ ...ex, isCustom: ex.isCustom || false }))
+      lastFetchTime.value = new Date().toISOString()
+      
     } catch (error) {
       toast.error('無法載入訓練動作')
+    } finally {
+      isLoading.value = false
     }
   }
 
   async function addExercise(name, muscleGroup) {
-    if (authStore.isGuest) {
-      const newExercise = {
-        _id: `guest_${new Date().getTime()}`,
+    try {
+      const newExercise = await dataService.value.add({
         name,
         muscleGroup,
-        user: authStore.user._id,
-        isCustom: true,
-      }
-      const guestData = JSON.parse(localStorage.getItem(GUEST_EXERCISES_KEY)) || []
-      guestData.push(newExercise)
-      localStorage.setItem(GUEST_EXERCISES_KEY, JSON.stringify(guestData))
+        isCustom: true
+      })
+      
       exercises.value.push(newExercise)
       toast.success(`動作 "${name}" 已新增！`)
-      return
-    }
-    try {
-      const response = await apiClient.post('/exercises', { name, muscleGroup })
-      exercises.value.push(response.data)
-      toast.success(`動作 "${name}" 已新增！`)
+      return newExercise
     } catch (error) {
       toast.error(error.response?.data?.message || `新增動作 "${name}" 失敗`)
+      throw error
     }
   }
 
   async function deleteExercise(id) {
     const templateStore = useTemplateStore()
     const exerciseToDelete = exercises.value.find((ex) => ex._id === id)
-    if (!exerciseToDelete) return
-
-    if (authStore.isGuest) {
-      let guestData = JSON.parse(localStorage.getItem(GUEST_EXERCISES_KEY)) || []
-      guestData = guestData.filter((ex) => ex._id !== id)
-      localStorage.setItem(GUEST_EXERCISES_KEY, JSON.stringify(guestData))
-      exercises.value = guestData
-      await templateStore.removeExerciseFromAllTemplates(id)
-      toast.success(`動作 "${exerciseToDelete.name}" 已成功刪除。`)
+    if (!exerciseToDelete) {
+      toast.error('找不到要刪除的動作')
       return
     }
 
     try {
-      await apiClient.delete(`/exercises/${id}`)
-      await fetchExercises()
-      await templateStore.fetchTemplates()
+      await dataService.value.delete(id)
+      
+      // 從本地狀態中移除
+      exercises.value = exercises.value.filter((ex) => ex._id !== id)
+      
+      // 從所有範本中移除此動作
+      await templateStore.removeExerciseFromAllTemplates(id)
+      
+      // 如果不是訪客模式，重新獲取範本以確保同步
+      if (!authStore.isGuest) {
+        await templateStore.fetchTemplates()
+      }
+      
       toast.success(`動作 "${exerciseToDelete.name}" 已成功刪除。`)
     } catch (error) {
       toast.error(error.response?.data?.message || '刪除動作失敗')
+      throw error
     }
   }
 
@@ -116,6 +132,8 @@ export const useExerciseStore = defineStore('exercise', () => {
     allExercises,
     groupedAllExercises,
     groupedCustomExercises,
+    isLoading,
+    lastFetchTime,
     fetchExercises,
     addExercise,
     deleteExercise,

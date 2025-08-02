@@ -7,7 +7,6 @@ const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
 })
-console.log(import.meta.env.VITE_API_PATH)
 // Add a request interceptor to show loading spinner
 apiClient.interceptors.request.use(
   (config) => {
