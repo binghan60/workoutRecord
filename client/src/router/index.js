@@ -19,13 +19,14 @@ const router = createRouter({
     {
       path: '/',
       name: 'home',
-      component: () => import('../views/DashboardView.vue'),
+      component: () => import('../views/WorkoutView.vue'),
+
       meta: { requiresAuth: true },
     },
     {
-      path: '/workout',
-      name: 'workout',
-      component: () => import('../views/WorkoutView.vue'),
+      path: '/dashboard',
+      name: 'dashboard',
+      component: () => import('../views/DashboardView.vue'),
       meta: { requiresAuth: true },
     },
     {

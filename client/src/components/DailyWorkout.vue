@@ -146,7 +146,10 @@ const savedStateJSON = localStorage.getItem(WORKOUT_IN_PROGRESS_KEY)
 if (savedStateJSON) {
   try {
     const savedState = JSON.parse(savedStateJSON)
-    if (savedState && savedState.exercises && savedState.exercises.length > 0) {
+    // Only restore if there are exercises AND at least one set has been marked as completed.
+    const hasCompletedSet = savedState.exercises?.some((ex) => ex.sets?.some((s) => s.isCompleted))
+
+    if (savedState && savedState.exercises && savedState.exercises.length > 0 && hasCompletedSet) {
       getInitialValues.value = {
         workoutName: savedState.workoutName || '恢復的訓練',
         exercises: savedState.exercises,
@@ -154,6 +157,9 @@ if (savedStateJSON) {
       stateToRestoreOnMount = savedState
       isWorkoutLoaded.value = true
       restoredFromStorage = true
+    } else {
+      // If no real progress, clear the saved state and load fresh.
+      localStorage.removeItem(WORKOUT_IN_PROGRESS_KEY)
     }
   } catch (error) {
     console.error('無法恢復訓練狀態:', error)

@@ -116,8 +116,8 @@ watchEffect(() => {
 })
 
 const navItems = [
-  { title: '儀表板', icon: 'mdi-view-dashboard', to: '/' },
-  { title: '開始訓練', icon: 'mdi-dumbbell', to: '/workout' },
+  { title: '開始訓練', icon: 'mdi-dumbbell', to: '/' },
+  { title: '儀表板', icon: 'mdi-view-dashboard', to: '/dashboard' },
   { title: '歷史紀錄', icon: 'mdi-history', to: '/history' },
   { title: '動作庫', icon: 'mdi-weight-lifter', to: '/exercises' },
   { title: '訓練範本', icon: 'mdi-clipboard-list', to: '/templates' },
