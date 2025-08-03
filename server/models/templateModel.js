@@ -1,11 +1,17 @@
 import mongoose from 'mongoose'
 
+const setInTemplateSchema = new mongoose.Schema(
+  {
+    reps: { type: Number, required: true },
+    weight: { type: Number, required: true },
+  },
+  { _id: false },
+)
+
 const exerciseInTemplateSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
-    sets: { type: Number, required: true },
-    reps: { type: Number, required: true },
-    weight: { type: Number, required: true },
+    sets: [setInTemplateSchema],
     restTime: { type: Number, default: 60 },
   },
   { _id: false },
@@ -21,6 +27,10 @@ const templateSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true,
+  },
+  autoSync: {
+    type: Boolean,
+    default: false,
   },
 })
 

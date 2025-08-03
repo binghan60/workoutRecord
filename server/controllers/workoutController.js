@@ -1,4 +1,5 @@
 import Workout from '../models/workoutModel.js'
+import Template from '../models/templateModel.js'
 
 // Get all workouts for the logged-in user (for chart data)
 export const getAllWorkouts = async (req, res) => {
@@ -38,6 +39,48 @@ export const addWorkout = async (req, res) => {
       user: req.user.id,
     })
     await newWorkout.save()
+
+    // --- Auto-sync logic starts here ---
+    const { templateId, exercises: workoutExercises } = newWorkout
+    if (templateId) {
+      try {
+        const template = await Template.findById(templateId)
+
+        if (template && template.autoSync) {
+          // Create a map of the last set for each exercise in the workout
+          const workoutExerciseMap = new Map()
+          workoutExercises.forEach((workoutExercise) => {
+            // We only care about sets that were actually completed
+            const completedSets = workoutExercise.sets.filter(s => s.isCompleted)
+            if (completedSets.length > 0) {
+              workoutExerciseMap.set(workoutExercise.name, completedSets.map(s => ({ reps: s.reps, weight: s.weight })))
+            }
+          })
+
+          // Update template exercises with the latest workout data
+          let isUpdated = false
+          template.exercises.forEach((templateExercise) => {
+            if (workoutExerciseMap.has(templateExercise.name)) {
+              const newSets = workoutExerciseMap.get(templateExercise.name)
+              // A simple JSON.stringify is a decent way to check for deep equality of the sets array.
+              if (JSON.stringify(templateExercise.sets) !== JSON.stringify(newSets)) {
+                templateExercise.sets = newSets
+                isUpdated = true
+              }
+            }
+          })
+
+          if (isUpdated) {
+            await template.save()
+          }
+        }
+      } catch (syncError) {
+        // Log the error but don't fail the main workout creation response
+        console.error('Error during template auto-sync:', syncError)
+      }
+    }
+    // --- Auto-sync logic ends here ---
+
     res.status(201).json(newWorkout)
   } catch (error) {
     res.status(400).json({ message: error.message })

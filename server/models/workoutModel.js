@@ -26,6 +26,11 @@ const workoutSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    templateId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Template',
+      required: false,
+    },
     exercises: [exerciseInWorkoutSchema],
     user: {
       type: mongoose.Schema.Types.ObjectId,

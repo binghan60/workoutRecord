@@ -2,7 +2,7 @@
   <v-container fluid class="pa-0">
     <v-app-bar app color="background" flat>
       <v-spacer></v-spacer>
-      <v-btn @click="discard" color="red" variant="text">
+      <v-btn v-if="dailyWorkoutRef?.isWorkoutActive" @click="discard" color="red" variant="text">
         <v-icon left>mdi-delete-sweep-outline</v-icon>
         丟棄進度
       </v-btn>

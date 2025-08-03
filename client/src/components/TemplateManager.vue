@@ -21,6 +21,18 @@
               ></v-switch>
             </div>
 
+            <v-switch v-model="autoSync" color="primary" class="mb-2">
+              <template v-slot:label>
+                自動同步最新訓練
+                <v-tooltip location="top">
+                  <template v-slot:activator="{ props }">
+                    <v-icon v-bind="props" size="xs" class="ml-1">mdi-help-circle-outline</v-icon>
+                  </template>
+                  <span>啟用後，每次完成訓練，將自動用該次訓練的數據更新此範本。</span>
+                </v-tooltip>
+              </template>
+            </v-switch>
+
             <v-expansion-panels multiple class="mb-4">
               <v-expansion-panel v-for="group in displayedExercises" :key="group.groupName">
                 <v-expansion-panel-title class="group-title">
@@ -37,20 +49,16 @@
                       </v-list-item>
                       <v-expand-transition>
                         <div v-if="isSelected(exercise)" class="pa-2 ml-12">
-                          <v-row>
-                            <v-col cols="6" sm="3">
-                              <v-text-field label="組數" type="number" v-model.number="getExerciseDetails(exercise._id).sets" min="1" variant="underlined" dense></v-text-field>
-                            </v-col>
-                            <v-col cols="6" sm="3">
-                              <v-text-field label="次數" type="number" v-model.number="getExerciseDetails(exercise._id).reps" min="1" variant="underlined" dense></v-text-field>
-                            </v-col>
-                            <v-col cols="6" sm="3">
-                              <v-text-field label="重量(kg)" type="number" v-model.number="getExerciseDetails(exercise._id).weight" min="0" step="0.5" variant="underlined" dense></v-text-field>
-                            </v-col>
-                            <v-col cols="6" sm="3">
-                              <v-text-field label="休息(秒)" type="number" v-model.number="getExerciseDetails(exercise._id).restTime" min="0" variant="underlined" dense></v-text-field>
-                            </v-col>
-                          </v-row>
+                          <!-- Dynamic sets editing -->
+                          <div v-for="(set, setIndex) in getExerciseDetails(exercise._id).sets" :key="setIndex" class="d-flex align-center mb-2">
+                            <span class="mr-2 font-weight-bold">第 {{ setIndex + 1 }} 組:</span>
+                            <v-text-field label="次數" type="number" v-model.number="set.reps" min="1" variant="underlined" dense class="mr-2"></v-text-field>
+                            <v-text-field label="重量(kg)" type="number" v-model.number="set.weight" min="0" step="0.5" variant="underlined" dense></v-text-field>
+                            <v-btn icon="mdi-delete-outline" size="small" variant="text" color="red" @click="removeSet(exercise._id, setIndex)" :disabled="getExerciseDetails(exercise._id).sets.length <= 1"></v-btn>
+                          </div>
+                          <v-btn size="small" variant="tonal" @click="addSet(exercise._id)" class="mt-1">新增一組</v-btn>
+                          <v-divider class="my-3"></v-divider>
+                          <v-text-field label="休息(秒)" type="number" v-model.number="getExerciseDetails(exercise._id).restTime" min="0" variant="underlined" dense></v-text-field>
                         </div>
                       </v-expand-transition>
                     </div>
@@ -112,6 +120,7 @@ const uiStore = useUIStore()
 
 const templateName = ref('')
 const selectedExercises = ref([])
+const autoSync = ref(false)
 
 const formRef = ref(null)
 const rules = {
@@ -124,55 +133,79 @@ const displayedExercises = computed(() => {
 
 const isSelected = (exercise) => selectedExercises.value.some((ex) => ex.id === exercise._id)
 
-const getExerciseDetails = (exerciseId) => selectedExercises.value.find((ex) => ex.id === exerciseId) || {}
+const getExerciseDetails = (exerciseId) => selectedExercises.value.find((ex) => ex.id === exerciseId) || { sets: [] }
 
 const toggleExercise = (exercise) => {
   if (isSelected(exercise)) {
     selectedExercises.value = selectedExercises.value.filter((ex) => ex.id !== exercise._id)
   } else {
     selectedExercises.value.push({
-      id: exercise._id, // Use the backend's _id for the temporary selection key
+      id: exercise._id,
       name: exercise.name,
-      sets: 3,
-      reps: 12,
-      weight: 10,
+      sets: [{ reps: 12, weight: 10 }], // Initialize with one set
       restTime: 60,
     })
   }
 }
 
-const handleAddTemplate = async () => {
-  // 先驗證表單
-  const { valid } = await formRef.value.validate()
-
-  if (!valid) {
-    // 如果表單驗證不通過，直接返回
-    return
+const addSet = (exerciseId) => {
+  const exercise = getExerciseDetails(exerciseId)
+  if (exercise && exercise.sets) {
+    const lastSet = exercise.sets.length > 0 ? exercise.sets[exercise.sets.length - 1] : { reps: 12, weight: 10 }
+    exercise.sets.push({ ...lastSet })
   }
+}
+
+const removeSet = (exerciseId, setIndex) => {
+  const exercise = getExerciseDetails(exerciseId)
+  if (exercise && exercise.sets && exercise.sets.length > 1) {
+    exercise.sets.splice(setIndex, 1)
+  }
+}
+
+const handleAddTemplate = async () => {
+  const { valid } = await formRef.value.validate()
+  if (!valid) return
 
   if (selectedExercises.value.length === 0) {
     toast.warning('請至少為課表選擇一個動作！')
     return
   }
 
-  const exercisesForAPI = JSON.parse(JSON.stringify(selectedExercises.value)).map((ex) => {
-    const { id, ...rest } = ex // Omit the temporary 'id' field
-    return {
-      ...rest,
-      exercise: ex.id, // Ensure the exercise ID is correctly named
+  const exercisesForAPI = selectedExercises.value.map((ex) => {
+    // Validate that every set has valid numbers
+    const hasInvalidSet = ex.sets.some(set => {
+      const reps = parseFloat(set.reps)
+      const weight = parseFloat(set.weight)
+      return isNaN(reps) || reps <= 0 || isNaN(weight) || weight < 0
+    })
+
+    if (hasInvalidSet) {
+      toast.error(`動作 "${ex.name}" 中有無效的組數、次數或重量。`)
+      return null // Mark as invalid
     }
-  })
+
+    const { id, ...rest } = ex
+    return rest
+  }).filter(Boolean) // Filter out null (invalid) exercises
+
+  // If any exercise was invalid, the length will not match
+  if (exercisesForAPI.length !== selectedExercises.value.length) {
+    return // Stop submission
+  }
 
   try {
     await templateStore.addTemplate({
       name: templateName.value,
       exercises: exercisesForAPI,
+      autoSync: autoSync.value,
     })
 
-    // 成功後清空資料並重置表單驗證狀態
     templateName.value = ''
     selectedExercises.value = []
+    autoSync.value = false
     formRef.value.reset()
+    formRef.value.resetValidation()
   } catch (error) {
     toast.error('課表建立失敗，請稍後再試')
   }
@@ -204,4 +237,5 @@ const confirmDeleteTemplate = (templateId, name) => {
   padding: 0 12px 8px;
 }
 </style>
+
 
