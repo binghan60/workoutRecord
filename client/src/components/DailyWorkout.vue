@@ -14,8 +14,8 @@
     <!-- Active Workout Interface -->
     <div v-else>
       <!-- Rest Timer Overlay -->
-      <v-overlay v-model="isResting" class="d-flex align-center justify-center">
-        <v-sheet color="black" class="pa-8 text-center" rounded="xl">
+      <v-overlay v-model="isResting" class="d-flex align-center justify-center" persistent>
+        <v-sheet color="black" height="100vh" width="100vw" class="d-flex flex-column align-center justify-center text-center">
           <p class="text-h4 font-weight-bold text-grey-lighten-1 mb-4">組間休息</p>
           <p class="text-h1 font-weight-bold text-white" style="font-size: 6rem !important">
             {{
@@ -143,6 +143,7 @@ const isResting = ref(false)
 const restTimeRemaining = ref(0)
 const restTimerInterval = ref(null)
 const restStartTime = ref(null)
+const restEndTime = ref(null)
 const lastCompletedSetInfo = ref(null)
 const exercisePushFn = ref(null)
 const exerciseInsertFn = ref(null)
@@ -169,6 +170,17 @@ if (savedStateJSON) {
       lastCompletedSetInfo.value = savedState.lastCompletedSetInfo || null
       restoredFromStorage = true
       toast.info('已從上次中斷處恢復訓練！')
+
+      if (savedState.restEndTime) {
+        const now = Date.now()
+        const newRemainingTime = Math.round((savedState.restEndTime - now) / 1000)
+
+        if (newRemainingTime > 0) {
+          restStartTime.value = savedState.restStartTime
+          lastCompletedSetInfo.value = savedState.lastCompletedSetInfo
+          startRestTimer(newRemainingTime)
+        }
+      }
     } else {
       localStorage.removeItem(WORKOUT_IN_PROGRESS_KEY)
     }
@@ -181,13 +193,13 @@ if (savedStateJSON) {
 const allExercises = computed(() => exerciseStore.allExercises)
 
 const dayMap = {
-  '星期日': 'sunday',
-  '星期一': 'monday',
-  '星期二': 'tuesday',
-  '星期三': 'wednesday',
-  '星期四': 'thursday',
-  '星期五': 'friday',
-  '星期六': 'saturday',
+  星期日: 'sunday',
+  星期一: 'monday',
+  星期二: 'tuesday',
+  星期三: 'wednesday',
+  星期四: 'thursday',
+  星期五: 'friday',
+  星期六: 'saturday',
 }
 const daysOfWeek = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
 const currentExercises = computed(() => formRef.value?.values?.exercises || [])
@@ -205,11 +217,22 @@ const saveState = () => {
     return
   }
 
+  const formValues = formRef.value.values
+  const hasCompletedSet = formValues.exercises.some((ex) => ex.sets?.some((s) => s.isCompleted))
+
+  if (!hasCompletedSet) {
+    localStorage.removeItem(WORKOUT_IN_PROGRESS_KEY)
+    return
+  }
+
   const stateToSave = {
-    workoutName: formRef.value.values.workoutName,
-    exercises: formRef.value.values.exercises,
-    templateId: formRef.value.values.templateId,
+    workoutName: formValues.workoutName,
+    exercises: formValues.exercises,
+    templateId: formValues.templateId,
     currentExerciseIndex: currentExerciseIndex.value,
+    restStartTime: restStartTime.value,
+    restEndTime: restEndTime.value,
+    lastCompletedSetInfo: lastCompletedSetInfo.value,
   }
   localStorage.setItem(WORKOUT_IN_PROGRESS_KEY, JSON.stringify(stateToSave))
 }
@@ -223,6 +246,13 @@ watch(
   },
   { deep: true },
 )
+
+watch(isResting, (isCurrentlyResting) => {
+  if (isCurrentlyResting) {
+    // Save state as soon as rest begins
+    saveState()
+  }
+})
 
 watch(
   () => modalStore.selectedExerciseId,
@@ -304,24 +334,20 @@ const runInitialCheck = async () => {
   const today = new Date()
   const dayName = daysOfWeek[today.getDay()]
   const englishDayKey = dayMap[dayName]
-  const workoutNameParts = (templateStore.schedule[englishDayKey] || []).map(t => t.name)
+  const workoutNameParts = (templateStore.schedule[englishDayKey] || []).map((t) => t.name)
   const expectedWorkoutName = workoutNameParts.join(' + ')
 
   if (expectedWorkoutName) {
     await workoutStore.fetchAllWorkouts(true)
     const todayStart = new Date()
     todayStart.setHours(0, 0, 0, 0)
-    
-    const todaysCompleted = workoutStore.allWorkouts.find(
-      (w) => new Date(w.createdAt) >= todayStart && w.name === expectedWorkoutName,
-    )
+
+    const todaysCompleted = workoutStore.allWorkouts.find((w) => new Date(w.createdAt) >= todayStart && w.name === expectedWorkoutName)
 
     if (todaysCompleted) {
       completedWorkoutForToday.value = todaysCompleted
       // Find the previous workout
-      previousWorkout.value = workoutStore.allWorkouts.find(
-        (w) => w._id !== todaysCompleted._id && w.name === expectedWorkoutName
-      ) || null
+      previousWorkout.value = workoutStore.allWorkouts.find((w) => w._id !== todaysCompleted._id && w.name === expectedWorkoutName) || null
       isCheckComplete.value = true
       return
     }
@@ -339,46 +365,63 @@ onMounted(() => {
   }
 })
 
-watch(() => templateStore.schedule, () => {
-  if (!restoredFromStorage && !completedWorkoutForToday.value) {
-    runInitialCheck()
-  }
-}, { deep: true })
+watch(
+  () => templateStore.schedule,
+  () => {
+    if (!restoredFromStorage && !completedWorkoutForToday.value) {
+      runInitialCheck()
+    }
+  },
+  { deep: true },
+)
 
-
-const stopRestTimer = (recordTime = true) => {
+function stopRestTimer(recordTime = true) {
   clearInterval(restTimerInterval.value)
   isResting.value = false
   if (recordTime && lastCompletedSetInfo.value && restStartTime.value) {
     const elapsedSeconds = Math.round((Date.now() - restStartTime.value) / 1000)
     const { exIndex, setIndex } = lastCompletedSetInfo.value
     formRef.value?.setFieldValue(`exercises[${exIndex}].sets[${setIndex}].actualRestTime`, elapsedSeconds)
-    restStartTime.value = null
   }
+  // 無論如何都清空 start time
+  restStartTime.value = null
+  restEndTime.value = null // Clear end time
 }
 
 onUnmounted(stopRestTimer)
 
-const completeSet = (exIndex, setIndex) => {
+function completeSet(exIndex, setIndex) {
   formRef.value?.setFieldValue(`exercises[${exIndex}].sets[${setIndex}].isCompleted`, true)
   lastCompletedSetInfo.value = { exIndex, setIndex }
   const exercise = currentExercises.value[exIndex]
   startRestTimer(exercise.restTime)
 }
 
-const startRestTimer = (duration) => {
+function startRestTimer(duration) {
   stopRestTimer(false)
   isResting.value = true
   restTimeRemaining.value = duration
-  restStartTime.value = Date.now()
+
+  // 如果 restStartTime 還沒有被設定 (表示這不是一次恢復操作)，才設定為現在
+  if (!restStartTime.value) {
+    restStartTime.value = Date.now()
+  }
+
+  restEndTime.value = restStartTime.value + duration * 1000 // Calculate end time
+
   restTimerInterval.value = setInterval(() => {
     restTimeRemaining.value--
-    if (restTimeRemaining.value <= 0) stopRestTimer()
+    if (restTimeRemaining.value <= 0) {
+      stopRestTimer()
+    }
   }, 1000)
 }
 
-const addRestTime = (seconds) => {
+function addRestTime(seconds) {
   restTimeRemaining.value += seconds
+  if (restEndTime.value) {
+    restEndTime.value += seconds * 1000
+  }
 }
 
 const changeExercise = (direction) => {
@@ -434,7 +477,7 @@ const saveWorkout = async (values) => {
 
   try {
     await workoutStore.addWorkout(newWorkout)
-    toast.success(`訓練 "${workoutName}" 已成功儲存！`)
+    // toast.success(`訓練 "${workoutName}" 已成功儲存！`)
     localStorage.removeItem(WORKOUT_IN_PROGRESS_KEY)
     await runInitialCheck()
   } catch (error) {
@@ -462,18 +505,14 @@ const confirmSubmission = (values) => {
 }
 
 const discardWorkout = () => {
-  modalStore.showConfirmation(
-    '丟棄進度',
-    '確定要丟棄所有未儲存的進度，並重新載入今日的預定訓練嗎？此操作無法復原。',
-    () => {
-      stopRestTimer(false)
-      localStorage.removeItem(WORKOUT_IN_PROGRESS_KEY)
-      restoredFromStorage = false
-      currentExerciseIndex.value = 0
-      runInitialCheck()
-      toast.info('訓練進度已丟棄。')
-    },
-  )
+  modalStore.showConfirmation('丟棄進度', '確定要丟棄所有未儲存的進度，並重新載入今日的預定訓練嗎？此操作無法復原。', () => {
+    stopRestTimer(false)
+    localStorage.removeItem(WORKOUT_IN_PROGRESS_KEY)
+    restoredFromStorage = false
+    currentExerciseIndex.value = 0
+    runInitialCheck()
+    toast.info('訓練進度已丟棄。')
+  })
 }
 
 const startExtraWorkout = () => {
@@ -482,10 +521,10 @@ const startExtraWorkout = () => {
   restoredFromStorage = false
   localStorage.removeItem(WORKOUT_IN_PROGRESS_KEY)
   currentExerciseIndex.value = 0
-  
+
   const extraWorkoutValues = { workoutName: '額外訓練', exercises: [], templateId: null }
   getInitialValues.value = extraWorkoutValues
-  
+
   nextTick(() => {
     formRef.value?.resetForm({ values: extraWorkoutValues })
   })
@@ -498,4 +537,3 @@ defineExpose({
   isWorkoutActive,
 })
 </script>
-
