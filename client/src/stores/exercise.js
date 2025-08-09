@@ -38,8 +38,7 @@ export const useExerciseStore = defineStore('exercise', () => {
   const dataService = computed(() => createDataService(authStore, {
     storageKey: GUEST_EXERCISES_KEY,
     apiEndpoint: '/exercises',
-    cacheKey: 'exercises',
-    cacheTTL: 10 * 60 * 1000 // 動作數據緩存 10 分鐘
+    dbTable: 'exercises' // The name of the Dexie table
   }))
 
   const _stablySortedExercises = computed(() => {
