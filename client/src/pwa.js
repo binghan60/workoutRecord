@@ -1,14 +1,11 @@
 export const pwaOptions = {
   registerType: 'autoUpdate',
-  // Explicitly include the favicon and other assets from the public folder
   includeAssets: ['favicon.ico'],
   manifest: {
     name: 'Workout Record',
     short_name: 'WorkoutApp',
     description: 'A progressive web app for tracking your workouts.',
     theme_color: '#ffffff',
-    // NOTE: For a proper PWA experience, please create pwa-192x192.png and pwa-512x512.png
-    // and place them in the 'public' directory.
     icons: [
       {
         src: 'favicon.ico',
@@ -27,13 +24,17 @@ export const pwaOptions = {
       }
     ]
   },
-  // Workbox configuration for the Service Worker
   workbox: {
-    // Pre-cache all the assets specified in globPatterns.
-    // This makes the app shell available offline.
     globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
     
-    // Runtime caching for assets that are not pre-cached, like fonts from Google.
+    // This is the crucial part we were missing.
+    // It tells the service worker to serve index.html for any navigation request
+    // that doesn't match a pre-cached asset. This is essential for SPAs.
+    navigateFallback: '/index.html',
+    
+    // Optional: Denylist for navigateFallback to avoid redirecting API calls etc.
+    navigateFallbackDenylist: [/^\/api/],
+
     runtimeCaching: [
       {
         urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,

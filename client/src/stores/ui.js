@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch } from 'vue'
 
 export const useUIStore = defineStore('ui', () => {
   // Theme Management
@@ -24,10 +24,6 @@ export const useUIStore = defineStore('ui', () => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('theme', newTheme)
     }
-  })
-
-  onMounted(() => {
-    theme.value = getInitialTheme()
   })
 
   // Loading Management
@@ -61,6 +57,19 @@ export const useUIStore = defineStore('ui', () => {
   watch(showBuiltInTemplates, (newValue) => {
     localStorage.setItem('showBuiltInTemplates', JSON.stringify(newValue))
   })
+  
+  // --- PWA Offline and Sync Status ---
+  const isOffline = ref(!navigator.onLine)
+  const isSyncing = ref(false)
+
+  function setOfflineStatus(offline) {
+    isOffline.value = offline
+  }
+  
+  function setSyncing(syncing) {
+    isSyncing.value = syncing
+  }
+  // --- End PWA Status ---
 
   return {
     theme,
@@ -71,5 +80,10 @@ export const useUIStore = defineStore('ui', () => {
     toggleShowBuiltInExercises,
     showBuiltInTemplates,
     toggleShowBuiltInTemplates,
+    // PWA Status
+    isOffline,
+    isSyncing,
+    setOfflineStatus,
+    setSyncing,
   }
 })

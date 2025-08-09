@@ -117,6 +117,17 @@
 
     <!-- 主要內容 -->
     <v-main class="main-content">
+       <!-- PWA Status Banner -->
+      <v-banner v-if="uiStore.isOffline || uiStore.isSyncing" lines="one" :color="uiStore.isOffline ? 'warning' : 'info'" class="status-banner" sticky>
+        <template v-slot:prepend>
+          <v-icon v-if="uiStore.isOffline">mdi-wifi-off</v-icon>
+          <v-progress-circular v-else indeterminate size="20" width="2"></v-progress-circular>
+        </template>
+        <div class="font-weight-medium">
+          {{ uiStore.isOffline ? '您目前處於離線狀態' : '正在同步資料...' }}
+        </div>
+      </v-banner>
+
       <router-view v-slot="{ Component }">
         <transition name="page-transition" mode="out-in" @enter="onPageEnter" @leave="onPageLeave">
           <component :is="Component" />
@@ -137,13 +148,18 @@
 </template>
 
 <script setup>
-import { ref, computed, watchEffect, onMounted, watch, defineAsyncComponent } from 'vue'
+import { ref, computed, watchEffect, onMounted, onBeforeUnmount, watch, defineAsyncComponent } from 'vue'
 import { useRoute } from 'vue-router'
 import { useUIStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
 import { useTheme } from 'vuetify'
 import { useResponsiveDesign } from '@/composables/useResponsiveDesign'
 import LoadingOverlay from '@/components/LoadingOverlay.vue'
+
+// --- PWA Offline Sync Imports ---
+import { db } from '@/utils/db'
+import apiClient from '@/api'
+// --- End PWA Imports ---
 
 // Lazy load modals
 const ConfirmModal = defineAsyncComponent(() => import('@/components/ConfirmModal.vue'))
@@ -169,123 +185,170 @@ const exerciseStore = useExerciseStore()
 const templateStore = useTemplateStore()
 const bodyMetricsStore = useBodyMetricsStore()
 
+// --- PWA SYNC LOGIC ---
+const isSyncing = ref(false)
+
+const syncQueue = async () => {
+  if (!navigator.onLine || authStore.isGuest || isSyncing.value) {
+    return
+  }
+
+  isSyncing.value = true
+  uiStore.setSyncing(true)
+
+  const jobs = await db.sync_queue.toArray()
+  if (jobs.length === 0) {
+    isSyncing.value = false
+    uiStore.setSyncing(false)
+    return
+  }
+
+  console.log(`Sync started: ${jobs.length} items to process.`)
+
+  for (const job of jobs) {
+    try {
+      switch (job.action) {
+        case 'add':
+          await apiClient.post(job.endpoint, job.payload)
+          break
+        case 'update':
+          await apiClient.put(job.endpoint, job.payload)
+          break
+        case 'delete':
+          await apiClient.delete(job.endpoint)
+          break
+      }
+      await db.sync_queue.delete(job.id)
+      console.log(`Job ${job.id} (${job.action}) synced successfully.`)
+    } catch (error) {
+      console.error(`Failed to sync job ${job.id}:`, error)
+      if (error.response && error.response.status === 401) {
+        console.error('Sync failed due to authentication error. Please log in again.')
+        authStore.logout()
+        break
+      }
+    }
+  }
+
+  if (jobs.some(job => job.id)) { // Check if any job was processed
+    console.log('Sync finished. Refreshing initial data.')
+    await fetchInitialData()
+  }
+
+  isSyncing.value = false
+  uiStore.setSyncing(false)
+}
+
 // 獲取認證用戶的所有必要數據
 const fetchInitialData = async () => {
   try {
-    await Promise.all([exerciseStore.fetchExercises(), templateStore.fetchTemplates(), templateStore.fetchSchedule(), bodyMetricsStore.fetchRecords()])
+    if (!navigator.onLine) {
+      console.log('Offline, skipping initial data fetch.')
+      return
+    }
+    await Promise.all([
+      exerciseStore.fetchExercises(),
+      templateStore.fetchTemplates(),
+      templateStore.fetchSchedule(),
+      bodyMetricsStore.fetchRecords()
+    ])
   } catch (error) {
     console.error('載入初始數據失敗:', error)
   }
 }
 
-// 組件掛載時檢查認證狀態
+// --- NETWORK STATUS HANDLERS ---
+const handleOnline = () => {
+  uiStore.setOfflineStatus(false)
+  syncQueue()
+}
+
+const handleOffline = () => {
+  uiStore.setOfflineStatus(true)
+}
+
+// --- LIFECYCLE HOOKS ---
 onMounted(() => {
+  window.addEventListener('online', handleOnline)
+  window.addEventListener('offline', handleOffline)
+  
   authStore.checkAuth()
   if (authStore.isAuthenticated) {
     fetchInitialData()
+    syncQueue()
   }
 })
 
-// 監聽認證狀態變化
-watch(
-  () => authStore.isAuthenticated,
-  (isAuth) => {
-    if (isAuth) {
-      fetchInitialData()
-    }
-  },
-)
-
-// 響應式同步 Vuetify 主題與 UI store
-watchEffect(() => {
-  theme.change(uiStore.theme)
+onBeforeUnmount(() => {
+  window.removeEventListener('online', handleOnline)
+  window.removeEventListener('offline', handleOffline)
 })
 
-// 導航項目（帶動態徽章）
+// --- WATCHERS ---
+watch(() => authStore.isAuthenticated, (isAuth, wasAuth) => {
+  if (isAuth) {
+    fetchInitialData()
+    syncQueue()
+  }
+  if (!isAuth && wasAuth) {
+    db.sync_queue.clear()
+    console.log("User logged out, sync queue cleared.")
+  }
+})
+
+watchEffect(() => {
+  theme.global.name.value = uiStore.theme
+})
+
+// --- COMPUTED PROPERTIES & METHODS ---
 const navItems = computed(() => [
-  {
-    title: '開始訓練',
-    icon: 'mdi-dumbbell',
-    to: '/',
-    badge: null,
-  },
-  {
-    title: '儀表板',
-    icon: 'mdi-view-dashboard',
-    to: '/dashboard',
-    badge: null,
-  },
-  {
-    title: '歷史紀錄',
-    icon: 'mdi-history',
-    to: '/history',
-    badge: null,
-  },
-  {
-    title: '動作庫',
-    icon: 'mdi-weight-lifter',
-    to: '/exercises',
-    badge: exerciseStore.customExercises?.length || null,
-  },
-  {
-    title: '訓練範本',
-    icon: 'mdi-clipboard-list',
-    to: '/templates',
-    badge: templateStore.customTemplates?.length || null,
-  },
-  {
-    title: '訓練排程',
-    icon: 'mdi-calendar-month',
-    to: '/schedule',
-    badge: null,
-  },
+  { title: '開始訓練', icon: 'mdi-dumbbell', to: '/' },
+  { title: '儀表板', icon: 'mdi-view-dashboard', to: '/dashboard' },
+  { title: '歷史紀錄', icon: 'mdi-history', to: '/history' },
+  { title: '動作庫', icon: 'mdi-weight-lifter', to: '/exercises', badge: exerciseStore.customExercises?.length || null },
+  { title: '訓練範本', icon: 'mdi-clipboard-list', to: '/templates', badge: templateStore.customTemplates?.length || null },
+  { title: '訓練排程', icon: 'mdi-calendar-month', to: '/schedule' },
 ])
 
-// 麵包屑導航
 const breadcrumbs = computed(() => {
   const pathSegments = route.path.split('/').filter(Boolean)
-  const crumbs = [{ title: '首頁', to: '/' }]
-
+  const crumbs = [{ title: '首頁', to: '/', disabled: false }]
   let currentPath = ''
-  pathSegments.forEach((segment) => {
+  pathSegments.forEach((segment, index) => {
     currentPath += `/${segment}`
     const navItem = navItems.value.find((item) => item.to === currentPath)
     if (navItem) {
-      crumbs.push({ title: navItem.title, to: currentPath })
+      crumbs.push({ title: navItem.title, to: currentPath, disabled: index === pathSegments.length - 1 })
     }
   })
-
   return crumbs
 })
 
-// 當前頁面標題
 const currentRouteTitle = computed(() => {
   const currentRoute = navItems.value.find((item) => item.to === route.path)
   return currentRoute ? currentRoute.title : 'Workout Record'
 })
 
-// 方法
-
 const handleLogout = () => {
   authStore.logout()
 }
 
-// 頁面轉場處理
-const onPageEnter = (el) => {
-  el.style.opacity = '0'
+const onPageEnter = (el, done) => {
+  el.style.opacity = 0
   el.style.transform = 'translateY(20px)'
-
   requestAnimationFrame(() => {
-    el.style.transition = 'all 0.3s ease-out'
-    el.style.opacity = '1'
+    el.style.transition = 'opacity 0.3s ease-out, transform 0.3s ease-out'
+    el.style.opacity = 1
     el.style.transform = 'translateY(0)'
   })
+  setTimeout(done, 300)
 }
 
-const onPageLeave = (el) => {
-  el.style.transition = 'all 0.2s ease-in'
-  el.style.opacity = '0'
+const onPageLeave = (el, done) => {
+  el.style.transition = 'opacity 0.2s ease-in, transform 0.2s ease-in'
+  el.style.opacity = 0
   el.style.transform = 'translateY(-10px)'
+  setTimeout(done, 200)
 }
 </script>
 
@@ -293,73 +356,61 @@ const onPageLeave = (el) => {
 .navigation-drawer {
   border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
-
 .user-profile {
   background: rgba(var(--v-theme-primary), 0.05);
   border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
-
 .nav-item {
   margin: 2px 8px;
   border-radius: 8px;
 }
-
 .nav-item--active {
   background: rgba(var(--v-theme-primary), 0.1);
   color: rgb(var(--v-theme-primary));
 }
-
 .app-bar {
   backdrop-filter: blur(10px);
 }
-
 .main-content {
   background: rgb(var(--v-theme-background));
   height: 100vh;
   overflow-y: auto;
 }
-
 .page-title {
   overflow: hidden;
 }
-
 .quick-action {
   border-radius: 8px;
   margin: 2px 0;
 }
-
-/* 頁面轉場 */
 .page-transition-enter-active,
 .page-transition-leave-active {
   transition: all 0.3s ease;
 }
-
 .page-transition-enter-from {
   opacity: 0;
   transform: translateX(30px);
 }
-
 .page-transition-leave-to {
   opacity: 0;
   transform: translateX(-30px);
 }
-
-/* 移動端優化 */
+.status-banner {
+  position: sticky;
+  top: 0;
+  z-index: 1005; /* Just below v-app-bar */
+}
 @media (max-width: 600px) {
   .user-profile {
     padding: 12px 16px;
   }
-
   .nav-item {
     margin: 1px 4px;
   }
 }
-
-/* 深色主題調整 */
 .v-theme--dark .navigation-drawer {
   background: rgb(var(--v-theme-surface));
 }
-
 .v-theme--dark .app-bar {
   background: rgba(var(--v-theme-surface), 0.9) !important;
 }

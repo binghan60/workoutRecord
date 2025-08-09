@@ -1,10 +1,11 @@
 /**
  * 數據服務抽象層
- * 統一處理 API 調用、訪客模式和緩存
+ * 統一處理 API 調用、訪客模式、離線操作和緩存
  */
 
 import apiClient from '@/api'
 import cacheManager from './cacheManager'
+import { db } from './db' // Import our IndexedDB service
 
 export class DataService {
   constructor(options = {}) {
@@ -32,16 +33,21 @@ export class DataService {
       return JSON.parse(localStorage.getItem(this.storageKey)) || []
     }
 
+    // Offline-first: If offline, we cannot fetch. This should be handled by the UI.
+    if (!navigator.onLine) {
+      console.warn('Offline: Cannot fetch all data. The app should rely on cached data if available.')
+      // Let the cache manager handle it, which might return stale data.
+    }
+
     const cacheKey = this.getUserCacheKey('all')
     return await cacheManager.getOrFetch(
       cacheKey,
       async () => {
-        // 對於 workouts，使用 /workouts/all 端點
         const endpoint = this.apiEndpoint === '/workouts' ? '/workouts/all' : this.apiEndpoint
         const response = await apiClient.get(endpoint)
         return response.data
       },
-      this.cacheTTL
+      this.cacheTTL,
     )
   }
 
@@ -54,13 +60,18 @@ export class DataService {
       const totalPages = Math.ceil(allData.length / limit)
       const startIndex = (page - 1) * limit
       const paginatedData = allData.slice(startIndex, startIndex + limit)
-      
+
       return {
         data: paginatedData,
         currentPage: page,
         totalPages,
-        total: allData.length
+        total: allData.length,
       }
+    }
+
+    if (!navigator.onLine) {
+      console.warn('Offline: Cannot fetch paginated data.')
+      return { data: [], currentPage: 1, totalPages: 1, total: 0 }
     }
 
     const cacheKey = this.getUserCacheKey(`page_${page}_${limit}`)
@@ -68,10 +79,9 @@ export class DataService {
       cacheKey,
       async () => {
         const response = await apiClient.get(`${this.apiEndpoint}?page=${page}&limit=${limit}`)
-        // 確保返回正確的數據結構
         return response.data
       },
-      this.cacheTTL
+      this.cacheTTL,
     )
   }
 
@@ -80,31 +90,32 @@ export class DataService {
    */
   async add(data) {
     if (this.isGuest) {
-      const newItem = {
-        ...data,
-        _id: `guest_${new Date().getTime()}`,
-        user: this.userId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-      
+      const newItem = { ...data, _id: `guest_${new Date().getTime()}`, user: this.userId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
       const guestData = JSON.parse(localStorage.getItem(this.storageKey)) || []
       guestData.unshift(newItem)
       localStorage.setItem(this.storageKey, JSON.stringify(guestData))
-      
-      // 清除相關緩存
       this.invalidateCache()
       return newItem
     }
 
-    try {
-      const response = await apiClient.post(this.apiEndpoint, data)
-      // 清除相關緩存
-      this.invalidateCache()
-      return response.data
-    } catch (error) {
-      throw error
+    // OFFLINE LOGIC
+    if (!navigator.onLine) {
+      console.log('Offline: Queuing ADD operation.')
+      const job = {
+        action: 'add',
+        endpoint: this.apiEndpoint,
+        payload: data,
+        timestamp: new Date().toISOString(),
+      }
+      await db.sync_queue.add(job)
+      this.invalidateCache() // Invalidate cache to reflect optimistic update
+      // Optimistic UI: return a temporary object
+      return { ...data, _id: `offline_${new Date().getTime()}`, isOffline: true }
     }
+
+    const response = await apiClient.post(this.apiEndpoint, data)
+    this.invalidateCache()
+    return response.data
   }
 
   /**
@@ -113,14 +124,9 @@ export class DataService {
   async update(id, data) {
     if (this.isGuest) {
       let guestData = JSON.parse(localStorage.getItem(this.storageKey)) || []
-      const index = guestData.findIndex(item => item._id === id)
-      
+      const index = guestData.findIndex((item) => item._id === id)
       if (index !== -1) {
-        guestData[index] = {
-          ...guestData[index],
-          ...data,
-          updatedAt: new Date().toISOString()
-        }
+        guestData[index] = { ...guestData[index], ...data, updatedAt: new Date().toISOString() }
         localStorage.setItem(this.storageKey, JSON.stringify(guestData))
         this.invalidateCache()
         return guestData[index]
@@ -128,13 +134,24 @@ export class DataService {
       throw new Error('項目未找到')
     }
 
-    try {
-      const response = await apiClient.put(`${this.apiEndpoint}/${id}`, data)
+    // OFFLINE LOGIC
+    if (!navigator.onLine) {
+      console.log('Offline: Queuing UPDATE operation.')
+      const job = {
+        action: 'update',
+        endpoint: `${this.apiEndpoint}/${id}`,
+        payload: data,
+        timestamp: new Date().toISOString(),
+      }
+      await db.sync_queue.add(job)
       this.invalidateCache()
-      return response.data
-    } catch (error) {
-      throw error
+      // Optimistic UI: return the updated data
+      return { ...data, _id: id, isOffline: true }
     }
+
+    const response = await apiClient.put(`${this.apiEndpoint}/${id}`, data)
+    this.invalidateCache()
+    return response.data
   }
 
   /**
@@ -143,19 +160,33 @@ export class DataService {
   async delete(id) {
     if (this.isGuest) {
       let guestData = JSON.parse(localStorage.getItem(this.storageKey)) || []
-      const filteredData = guestData.filter(item => item._id !== id)
+      const filteredData = guestData.filter((item) => item._id !== id)
       localStorage.setItem(this.storageKey, JSON.stringify(filteredData))
       this.invalidateCache()
       return true
     }
 
-    try {
-      await apiClient.delete(`${this.apiEndpoint}/${id}`)
+    // OFFLINE LOGIC
+    if (id.toString().startsWith('offline_')) {
+      console.log('Offline: This item was created offline and has not been synced. It cannot be deleted yet.')
+      // For simplicity, we prevent deletion for now.
+      throw new Error("Cannot delete an item that was created offline and hasn't been synced.")
+    }
+    if (!navigator.onLine) {
+      console.log('Offline: Queuing DELETE operation.')
+      const job = {
+        action: 'delete',
+        endpoint: `${this.apiEndpoint}/${id}`,
+        timestamp: new Date().toISOString(),
+      }
+      await db.sync_queue.add(job)
       this.invalidateCache()
       return true
-    } catch (error) {
-      throw error
     }
+
+    await apiClient.delete(`${this.apiEndpoint}/${id}`)
+    this.invalidateCache()
+    return true
   }
 
   /**
@@ -164,7 +195,11 @@ export class DataService {
   async getById(id) {
     if (this.isGuest) {
       const guestData = JSON.parse(localStorage.getItem(this.storageKey)) || []
-      return guestData.find(item => item._id === id) || null
+      return guestData.find((item) => item._id === id) || null
+    }
+
+    if (!navigator.onLine) {
+      console.warn('Offline: Cannot fetch by ID. Trying to find in cache.')
     }
 
     const cacheKey = this.getUserCacheKey(`item_${id}`)
@@ -174,7 +209,7 @@ export class DataService {
         const response = await apiClient.get(`${this.apiEndpoint}/${id}`)
         return response.data
       },
-      this.cacheTTL
+      this.cacheTTL,
     )
   }
 
@@ -202,6 +237,6 @@ export function createDataService(authStore, config) {
   return new DataService({
     isGuest: authStore.isGuest,
     userId: authStore.user?._id,
-    ...config
+    ...config,
   })
 }
