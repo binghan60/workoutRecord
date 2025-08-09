@@ -3,10 +3,11 @@ import { ref, computed } from 'vue'
 import { useToast } from 'vue-toastification'
 import { useAuthStore } from './auth'
 import { createDataService } from '@/utils/dataService'
-import { db } from '@/utils/db' // Import db for direct queue access
-import { apiClient } from '@/utils/apiClient' // Import apiClient for HTTP requests
+import { db } from '@/utils/db'
+import apiClient from '@/api'
 
 const toast = useToast()
+const SCHEDULE_DB_KEY = 'currentUserSchedule' // Use a fixed key for the single schedule object
 
 export const useTemplateStore = defineStore('template', () => {
   const templates = ref([])
@@ -18,12 +19,6 @@ export const useTemplateStore = defineStore('template', () => {
     storageKey: 'guest_templates',
     apiEndpoint: '/templates',
     dbTable: 'templates'
-  }))
-
-  const scheduleService = computed(() => createDataService(authStore, {
-    storageKey: 'guest_schedule',
-    apiEndpoint: '/schedule',
-    dbTable: 'schedules'
   }))
 
   const getTemplateById = computed(() => {
@@ -42,7 +37,6 @@ export const useTemplateStore = defineStore('template', () => {
   async function addTemplate(templateData) {
     try {
       const newTemplate = await templateService.value.add(templateData)
-      // Optimistic update: The service returns a temporary object when offline
       templates.value.unshift(newTemplate)
       toast.success(`課表 "${templateData.name}" 已建立！`)
     } catch (error) {
@@ -72,9 +66,9 @@ export const useTemplateStore = defineStore('template', () => {
       
       let scheduleNeedsUpdate = false
       for (const day in schedule.value) {
-        const initialLength = schedule.value[day].length
-        schedule.value[day] = schedule.value[day].filter(t => t._id !== templateId)
-        if(schedule.value[day].length < initialLength) {
+        const initialLength = schedule.value[day]?.length || 0
+        schedule.value[day] = schedule.value[day]?.filter(t => t._id !== templateId)
+        if(schedule.value[day]?.length < initialLength) {
           scheduleNeedsUpdate = true
         }
       }
@@ -88,57 +82,79 @@ export const useTemplateStore = defineStore('template', () => {
     }
   }
 
+  // --- DEDICATED SCHEDULE LOGIC ---
+
   async function fetchSchedule() {
-    try {
-      const data = await scheduleService.value.fetchAll()
-      schedule.value = Array.isArray(data) && data.length > 0 ? data[0] : (data || {})
-    } catch (error) {
-      toast.error('無法載入訓練排程')
+    if (authStore.isGuest) {
+        const guestScheduleIds = JSON.parse(localStorage.getItem('guest_schedule')) || {}
+        const guestTemplates = JSON.parse(localStorage.getItem('guest_templates')) || []
+        const populatedSchedule = {}
+        for (const day in guestScheduleIds) {
+            populatedSchedule[day] = guestScheduleIds[day]
+            .map((id) => guestTemplates.find((t) => t._id === id))
+            .filter(Boolean)
+        }
+        schedule.value = populatedSchedule
+        return
+    }
+
+    if (navigator.onLine) {
+        try {
+            const response = await apiClient.get('/schedule')
+            const scheduleData = response.data.data || response.data || {}
+            // Use .put() to save the single schedule object with a fixed key
+            await db.schedules.put({ _id: SCHEDULE_DB_KEY, ...scheduleData })
+            schedule.value = scheduleData
+        } catch (error) {
+            toast.error('無法從伺服器載入訓練排程，嘗試從本地讀取。')
+            const localSchedule = await db.schedules.get(SCHEDULE_DB_KEY)
+            schedule.value = localSchedule || {}
+        }
+    } else {
+        const localSchedule = await db.schedules.get(SCHEDULE_DB_KEY)
+        schedule.value = localSchedule || {}
     }
   }
 
   async function updateScheduleOnBackend() {
-    if (authStore.isGuest) {
-      const idOnlySchedule = {}
-      for (const day in schedule.value) {
-        if (Array.isArray(schedule.value[day])) {
-          idOnlySchedule[day] = schedule.value[day].map((template) => template._id || template)
-        }
+    const idOnlySchedule = {}
+    for (const day in schedule.value) {
+      if (Array.isArray(schedule.value[day])) {
+        idOnlySchedule[day] = schedule.value[day].map((template) => template._id || template)
       }
+    }
+
+    if (authStore.isGuest) {
       localStorage.setItem('guest_schedule', JSON.stringify(idOnlySchedule))
       return
     }
 
-    const idOnlySchedule = {}
-    for (const day in schedule.value) {
-        if (Array.isArray(schedule.value[day])) {
-            idOnlySchedule[day] = schedule.value[day].map((template) => template._id || template)
-        }
-    }
+    const scheduleToSave = { _id: SCHEDULE_DB_KEY, ...schedule.value }
+    await db.schedules.put(scheduleToSave) // Optimistic update to local DB
 
     if (!navigator.onLine) {
         console.log("Offline: Queuing schedule update.")
-        // Use a specific ID for the schedule job to prevent duplicates
         await db.sync_queue.put({
-            id: 'singleton_schedule_update', // This will overwrite previous schedule updates
+            id: 'singleton_schedule_update',
             action: 'update',
             endpoint: '/schedule',
             payload: idOnlySchedule,
             timestamp: new Date().toISOString()
         })
-        // No toast error because this is expected behavior
         return 
     }
 
     try {
       const response = await apiClient.put('/schedule', idOnlySchedule)
-      schedule.value = response.data
+      const updatedScheduleData = response.data.data || response.data
+      await db.schedules.put({ _id: SCHEDULE_DB_KEY, ...updatedScheduleData })
+      schedule.value = updatedScheduleData
     } catch (error) {
       toast.error('更新排程失敗')
-      // Re-fetch local schedule to revert optimistic changes
-      await fetchSchedule()
     }
   }
+
+  // --- END DEDICATED SCHEDULE LOGIC ---
 
   function addTemplateToSchedule(day, templateId) {
     if (!day || !templateId) return
@@ -157,7 +173,7 @@ export const useTemplateStore = defineStore('template', () => {
 
     schedule.value[day].push(template)
     toast.success(`已將 "${template.name}" 加入 ${day} 的排程`)
-    updateScheduleOnBackend() // This will now handle online/offline correctly
+    updateScheduleOnBackend()
   }
 
   function removeTemplateFromSchedule(day, index) {
@@ -201,5 +217,3 @@ export const useTemplateStore = defineStore('template', () => {
     removeExerciseFromAllTemplates,
   }
 })
-
-
