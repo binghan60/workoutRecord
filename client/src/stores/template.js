@@ -3,16 +3,17 @@ import { ref, computed } from 'vue'
 import { useToast } from 'vue-toastification'
 import { useAuthStore } from './auth'
 import { createDataService } from '@/utils/dataService'
+import { db } from '@/utils/db' // Import db for direct queue access
+import { apiClient } from '@/utils/apiClient' // Import apiClient for HTTP requests
 
 const toast = useToast()
 
 export const useTemplateStore = defineStore('template', () => {
   const templates = ref([])
-  const schedule = ref({}) // This will hold the populated schedule
+  const schedule = ref({})
   const daysOfWeek = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日']
   const authStore = useAuthStore()
 
-  // --- Data Services ---
   const templateService = computed(() => createDataService(authStore, {
     storageKey: 'guest_templates',
     apiEndpoint: '/templates',
@@ -24,7 +25,6 @@ export const useTemplateStore = defineStore('template', () => {
     apiEndpoint: '/schedule',
     dbTable: 'schedules'
   }))
-  // ---
 
   const getTemplateById = computed(() => {
     return (templateId) => templates.value.find((t) => t._id === templateId)
@@ -42,6 +42,7 @@ export const useTemplateStore = defineStore('template', () => {
   async function addTemplate(templateData) {
     try {
       const newTemplate = await templateService.value.add(templateData)
+      // Optimistic update: The service returns a temporary object when offline
       templates.value.unshift(newTemplate)
       toast.success(`課表 "${templateData.name}" 已建立！`)
     } catch (error) {
@@ -56,7 +57,6 @@ export const useTemplateStore = defineStore('template', () => {
       if (index !== -1) {
         templates.value[index] = updatedTemplate
       }
-      // Also update in schedule if present
       await fetchSchedule()
       toast.success(`課表 "${templateData.name}" 已更新！`)
     } catch (error) {
@@ -70,7 +70,6 @@ export const useTemplateStore = defineStore('template', () => {
       await templateService.value.delete(templateId)
       templates.value = templates.value.filter((t) => t._id !== templateId)
       
-      // Also remove from schedule
       let scheduleNeedsUpdate = false
       for (const day in schedule.value) {
         const initialLength = schedule.value[day].length
@@ -91,44 +90,53 @@ export const useTemplateStore = defineStore('template', () => {
 
   async function fetchSchedule() {
     try {
-      // The schedule endpoint returns populated data, which is what we want to cache.
       const data = await scheduleService.value.fetchAll()
-      // The fetchAll for schedule is special, it might not return an array.
-      // Let's assume it returns the schedule object.
-      schedule.value = Array.isArray(data) ? data[0] || {} : data || {}
+      schedule.value = Array.isArray(data) && data.length > 0 ? data[0] : (data || {})
     } catch (error) {
       toast.error('無法載入訓練排程')
     }
   }
 
   async function updateScheduleOnBackend() {
-    try {
+    if (authStore.isGuest) {
       const idOnlySchedule = {}
       for (const day in schedule.value) {
         if (Array.isArray(schedule.value[day])) {
           idOnlySchedule[day] = schedule.value[day].map((template) => template._id || template)
         }
       }
-      // We use the 'update' method of DataService, assuming schedule has a single document structure
-      // This part is tricky. Let's assume the schedule has a known ID, e.g., the user's ID.
-      // For simplicity, we'll use a custom call here instead of the generic service for now.
-      if (authStore.isGuest) {
-         localStorage.setItem('guest_schedule', JSON.stringify(idOnlySchedule))
-         return
-      }
-      if (navigator.onLine) {
-        const response = await apiClient.put('/schedule', idOnlySchedule)
-        schedule.value = response.data
-      } else {
-        // Offline handling for schedule update is complex.
-        // We can queue a single 'updateSchedule' job.
-        console.log("Offline: Queuing schedule update.")
-        // This requires a more specific handling than the generic DataService.
-        // For now, we'll just log it. A full implementation would add this to the sync_queue.
-      }
+      localStorage.setItem('guest_schedule', JSON.stringify(idOnlySchedule))
+      return
+    }
 
+    const idOnlySchedule = {}
+    for (const day in schedule.value) {
+        if (Array.isArray(schedule.value[day])) {
+            idOnlySchedule[day] = schedule.value[day].map((template) => template._id || template)
+        }
+    }
+
+    if (!navigator.onLine) {
+        console.log("Offline: Queuing schedule update.")
+        // Use a specific ID for the schedule job to prevent duplicates
+        await db.sync_queue.put({
+            id: 'singleton_schedule_update', // This will overwrite previous schedule updates
+            action: 'update',
+            endpoint: '/schedule',
+            payload: idOnlySchedule,
+            timestamp: new Date().toISOString()
+        })
+        // No toast error because this is expected behavior
+        return 
+    }
+
+    try {
+      const response = await apiClient.put('/schedule', idOnlySchedule)
+      schedule.value = response.data
     } catch (error) {
       toast.error('更新排程失敗')
+      // Re-fetch local schedule to revert optimistic changes
+      await fetchSchedule()
     }
   }
 
@@ -148,16 +156,16 @@ export const useTemplateStore = defineStore('template', () => {
     }
 
     schedule.value[day].push(template)
-    updateScheduleOnBackend()
     toast.success(`已將 "${template.name}" 加入 ${day} 的排程`)
+    updateScheduleOnBackend() // This will now handle online/offline correctly
   }
 
   function removeTemplateFromSchedule(day, index) {
     if (!schedule.value[day] || schedule.value[day][index] === undefined) return
     const template = schedule.value[day][index]
     schedule.value[day].splice(index, 1)
-    updateScheduleOnBackend()
     toast.info(`已從 ${day} 的排程中移除 "${template.name}"`)
+    updateScheduleOnBackend()
   }
 
   function updateScheduleOrder(day, oldIndex, newIndex) {
@@ -172,7 +180,6 @@ export const useTemplateStore = defineStore('template', () => {
       const initialLength = template.exercises.length
       template.exercises = template.exercises.filter((ex) => ex.exercise !== exerciseId)
       if (template.exercises.length < initialLength) {
-        // If an exercise was removed, update the template
         updateTemplate(template._id, template)
       }
     })
