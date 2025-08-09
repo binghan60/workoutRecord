@@ -3,13 +3,14 @@ import { ref, computed } from 'vue'
 import { useToast } from 'vue-toastification'
 import { useRouter } from 'vue-router'
 import apiClient from '@/api'
+import { db } from '@/utils/db' // Import dexie db for clearing queue on logout
 
 const toast = useToast()
 
 export const useAuthStore = defineStore('auth', () => {
-  const user = ref(JSON.parse(localStorage.getItem('user')) || null)
-  const token = ref(localStorage.getItem('token') || null)
-  const isGuest = ref(JSON.parse(localStorage.getItem('isGuest')) || false)
+  const user = ref(null)
+  const token = ref(null)
+  const isGuest = ref(false)
   const router = useRouter()
 
   const isAuthenticated = computed(() => (!!token.value && !!user.value) || isGuest.value)
@@ -20,7 +21,7 @@ export const useAuthStore = defineStore('auth', () => {
     isGuest.value = false
     localStorage.setItem('user', JSON.stringify(userData))
     localStorage.setItem('token', authToken)
-    localStorage.removeItem('isGuest')
+    localStorage.setItem('isGuest', 'false') // Explicitly set guest to false
     apiClient.defaults.headers.common['Authorization'] = `Bearer ${authToken}`
   }
 
@@ -32,6 +33,8 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('token')
     localStorage.removeItem('isGuest')
     delete apiClient.defaults.headers.common['Authorization']
+    // Also clear the sync queue as it's user-specific
+    db.sync_queue.clear().then(() => console.log('Sync queue cleared on logout.'))
   }
 
   async function login(credentials) {
@@ -47,7 +50,6 @@ export const useAuthStore = defineStore('auth', () => {
 
       toast.success(`歡迎回來, ${response.data.data.user.username}!`)
       await router.push('/')
-      // window.location.reload()
     } catch (error) {
       toast.error(error.response?.data?.message || '登入失敗，請檢查您的信箱和密碼。')
     }
@@ -59,20 +61,17 @@ export const useAuthStore = defineStore('auth', () => {
       setAuthData(response.data.data.user, response.data.token)
       toast.success(`註冊成功, 歡迎 ${response.data.data.user.username}!`)
       await router.push('/')
-      // window.location.reload()
     } catch (error) {
       toast.error(error.response?.data?.message || '註冊失敗，請稍後再試。')
     }
   }
 
   async function loginAsGuest() {
+    clearAuthData() // Clear previous user data first
     isGuest.value = true
     user.value = { _id: 'guest', username: '訪客', email: 'guest@example.com' }
-    token.value = null
     localStorage.setItem('isGuest', 'true')
     localStorage.setItem('user', JSON.stringify(user.value))
-    localStorage.removeItem('token')
-    delete apiClient.defaults.headers.common['Authorization']
     toast.success('以訪客身份登入')
     await router.push('/')
   }
@@ -82,32 +81,55 @@ export const useAuthStore = defineStore('auth', () => {
     clearAuthData()
     toast.info(`${username}，您已成功登出。`)
     await router.push('/login')
-    // window.location.reload()
   }
 
   async function checkAuth() {
-    if (isGuest.value) {
-      user.value = JSON.parse(localStorage.getItem('user')) || { _id: 'guest', username: '訪客', email: 'guest@example.com' }
+    const localToken = localStorage.getItem('token')
+    const localUser = JSON.parse(localStorage.getItem('user'))
+    const localIsGuest = JSON.parse(localStorage.getItem('isGuest'))
+
+    if (localIsGuest) {
+      isGuest.value = true
+      user.value = localUser || { _id: 'guest', username: '訪客', email: 'guest@example.com' }
       return
     }
-    if (token.value) {
-      try {
-        apiClient.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
-        const response = await apiClient.get('/users/me')
-        user.value = response.data.data.user
-        localStorage.setItem('user', JSON.stringify(response.data.data.user))
-      } catch (error) {
-        clearAuthData()
-        if (router.currentRoute.value.meta.requiresAuth) {
-          router.push('/login')
+
+    if (localToken && localUser) {
+      // Optimistic approach for offline-first
+      // 1. Assume the user is authenticated
+      token.value = localToken
+      user.value = localUser
+      isAuthenticated.value = true
+      apiClient.defaults.headers.common['Authorization'] = `Bearer ${localToken}`
+
+      // 2. If online, try to verify the token in the background
+      if (navigator.onLine) {
+        try {
+          const response = await apiClient.get('/users/me')
+          // Token is valid, update user data with fresh info
+          user.value = response.data.data.user
+          localStorage.setItem('user', JSON.stringify(response.data.data.user))
+        } catch (error) {
+          // Verification failed (e.g., token expired, server error)
+          console.error('Token verification failed, logging out.', error)
+          toast.error('您的登入已過期，請重新登入。')
+          clearAuthData()
+          // Redirect to login only if the current page requires auth
+          if (router.currentRoute.value.meta.requiresAuth) {
+            router.push('/login')
+          }
         }
       }
+      // 3. If offline, we just trust the local data. The sync process will handle
+      // any auth errors when the connection is restored.
+    } else {
+      // No local token/user, ensure everything is cleared.
+      clearAuthData()
     }
   }
 
-  if (token.value || isGuest.value) {
-    checkAuth()
-  }
+  // Initial check when the store is created
+  checkAuth()
 
   return {
     user,
