@@ -7,6 +7,8 @@ import router from './router'
 import Toast, { useToast } from 'vue-toastification'
 import 'vue-toastification/dist/index.css'
 import vuetify from './plugins/vuetify'
+import { useAuthStore } from '@/stores/auth' // Import the auth store
+
 Highcharts.setOptions({
   lang: {
     thousandsSep: ',',
@@ -70,14 +72,27 @@ const toastOptions = {
   transition: 'Vue-Toastification__fade',
 }
 
-const app = createApp(App)
+// --- ASYNC APP INITIALIZATION ---
+async function initialize() {
+  const app = createApp(App)
+  const pinia = createPinia()
 
-app.use(createPinia()) // Pinia 必須在 Vuetify 之前
-app.use(vuetify)
-app.use(Toast, toastOptions)
-app.config.globalProperties.$toast = useToast()
+  app.use(pinia) // Pinia must be available for stores to be used
 
-app.use(HighchartsVue, { Highcharts })
-app.use(router)
+  // Initialize stores and load offline data BEFORE mounting the app
+  const authStore = useAuthStore()
+  await authStore.init() // This new function will handle all initial data loading
 
-app.mount('#app')
+  // Now, proceed with the rest of the app setup
+  app.use(vuetify)
+  app.use(Toast, toastOptions)
+  app.config.globalProperties.$toast = useToast()
+
+  app.use(HighchartsVue, { Highcharts })
+  app.use(router)
+
+  // Only mount the app after everything is initialized
+  app.mount('#app')
+}
+
+initialize()

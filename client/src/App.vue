@@ -148,7 +148,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watchEffect, onMounted, onBeforeUnmount, watch, defineAsyncComponent } from 'vue'
+import { ref, computed, watchEffect, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue'
 import { useRoute } from 'vue-router'
 import { useUIStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
@@ -156,36 +156,28 @@ import { useTheme } from 'vuetify'
 import { useResponsiveDesign } from '@/composables/useResponsiveDesign'
 import LoadingOverlay from '@/components/LoadingOverlay.vue'
 
-// --- PWA Offline Sync Imports ---
 import { db } from '@/utils/db'
 import apiClient from '@/api'
-// --- End PWA Imports ---
 
 // Lazy load modals
 const ConfirmModal = defineAsyncComponent(() => import('@/components/ConfirmModal.vue'))
 const ExerciseModal = defineAsyncComponent(() => import('@/components/ExerciseModal.vue'))
 const BodyMetricsModal = defineAsyncComponent(() => import('@/components/BodyMetricsModal.vue'))
 
-// Import data stores
+// Import data stores for computed properties like badges
 import { useExerciseStore } from '@/stores/exercise'
 import { useTemplateStore } from '@/stores/template'
-import { useBodyMetricsStore } from '@/stores/bodyMetrics'
 
 const drawer = ref(null)
 const route = useRoute()
 const uiStore = useUIStore()
 const authStore = useAuthStore()
 const theme = useTheme()
-
-// 響應式設計
-const { mobile, responsiveSizes, drawerBehavior, typographyScale, density } = useResponsiveDesign()
-
-// Initialize data stores
 const exerciseStore = useExerciseStore()
 const templateStore = useTemplateStore()
-const bodyMetricsStore = useBodyMetricsStore()
 
-// --- PWA SYNC LOGIC ---
+const { mobile, responsiveSizes, drawerBehavior, typographyScale, density } = useResponsiveDesign()
+
 const isSyncing = ref(false)
 
 const syncQueue = async () => {
@@ -230,34 +222,17 @@ const syncQueue = async () => {
     }
   }
 
-  if (jobs.some(job => job.id)) { // Check if any job was processed
-    console.log('Sync finished. Refreshing initial data.')
-    await fetchInitialData()
-  }
-
   isSyncing.value = false
   uiStore.setSyncing(false)
-}
-
-// 獲取認證用戶的所有必要數據
-const fetchInitialData = async () => {
-  try {
-    if (!navigator.onLine) {
-      console.log('Offline, skipping initial data fetch.')
-      return
-    }
-    await Promise.all([
-      exerciseStore.fetchExercises(),
-      templateStore.fetchTemplates(),
-      templateStore.fetchSchedule(),
-      bodyMetricsStore.fetchRecords()
-    ])
-  } catch (error) {
-    console.error('載入初始數據失敗:', error)
+  
+  // After sync, reload the page to get the freshest data from the server
+  // This is a simple way to ensure UI consistency.
+  if (jobs.length > 0) {
+    console.log('Sync finished. Reloading for data consistency.')
+    window.location.reload()
   }
 }
 
-// --- NETWORK STATUS HANDLERS ---
 const handleOnline = () => {
   uiStore.setOfflineStatus(false)
   syncQueue()
@@ -267,16 +242,9 @@ const handleOffline = () => {
   uiStore.setOfflineStatus(true)
 }
 
-// --- LIFECYCLE HOOKS ---
 onMounted(() => {
   window.addEventListener('online', handleOnline)
   window.addEventListener('offline', handleOffline)
-  
-  authStore.checkAuth()
-  if (authStore.isAuthenticated) {
-    fetchInitialData()
-    syncQueue()
-  }
 })
 
 onBeforeUnmount(() => {
@@ -284,50 +252,41 @@ onBeforeUnmount(() => {
   window.removeEventListener('offline', handleOffline)
 })
 
-// --- WATCHERS ---
-watch(() => authStore.isAuthenticated, (isAuth, wasAuth) => {
-  if (isAuth) {
-    fetchInitialData()
-    syncQueue()
-  }
-  if (!isAuth && wasAuth) {
-    db.sync_queue.clear()
-    console.log("User logged out, sync queue cleared.")
-  }
-})
-
 watchEffect(() => {
   theme.global.name.value = uiStore.theme
 })
 
-// --- COMPUTED PROPERTIES & METHODS ---
 const navItems = computed(() => [
   { title: '開始訓練', icon: 'mdi-dumbbell', to: '/' },
   { title: '儀表板', icon: 'mdi-view-dashboard', to: '/dashboard' },
   { title: '歷史紀錄', icon: 'mdi-history', to: '/history' },
-  { title: '動作庫', icon: 'mdi-weight-lifter', to: '/exercises', badge: exerciseStore.customExercises?.length || null },
-  { title: '訓練範本', icon: 'mdi-clipboard-list', to: '/templates', badge: templateStore.customTemplates?.length || null },
+  { title: '動作庫', icon: 'mdi-weight-lifter', to: '/exercises', badge: exerciseStore.allExercises.filter(ex => ex.isCustom).length || null },
+  { title: '訓練範本', icon: 'mdi-clipboard-list', to: '/templates', badge: templateStore.templates.filter(t => t.isCustom).length || null },
   { title: '訓練排程', icon: 'mdi-calendar-month', to: '/schedule' },
 ])
-
-const breadcrumbs = computed(() => {
-  const pathSegments = route.path.split('/').filter(Boolean)
-  const crumbs = [{ title: '首頁', to: '/', disabled: false }]
-  let currentPath = ''
-  pathSegments.forEach((segment, index) => {
-    currentPath += `/${segment}`
-    const navItem = navItems.value.find((item) => item.to === currentPath)
-    if (navItem) {
-      crumbs.push({ title: navItem.title, to: currentPath, disabled: index === pathSegments.length - 1 })
-    }
-  })
-  return crumbs
-})
 
 const currentRouteTitle = computed(() => {
   const currentRoute = navItems.value.find((item) => item.to === route.path)
   return currentRoute ? currentRoute.title : 'Workout Record'
 })
+
+const breadcrumbs = computed(() => {
+    const pathSegments = route.path.split('/').filter(Boolean);
+    const crumbs = [{ title: '首頁', to: '/', disabled: pathSegments.length === 0 }];
+    let currentPath = '';
+    pathSegments.forEach((segment, index) => {
+        currentPath += `/${segment}`;
+        const navItem = navItems.value.find(item => item.to === currentPath);
+        if (navItem) {
+            crumbs.push({
+                title: navItem.title,
+                to: navItem.to,
+                disabled: index === pathSegments.length - 1
+            });
+        }
+    });
+    return crumbs;
+});
 
 const handleLogout = () => {
   authStore.logout()
