@@ -13,18 +13,22 @@
             <v-col cols="12" class="pa-0 mb-10">
               <v-card>
                 <v-card-text>
-                  <!-- Add v-if to ensure data is loaded before rendering chart -->
+                  <!-- 改進的載入狀態 -->
                   <OverallWorkoutChart v-if="workoutStore.allWorkouts.length > 0" />
+                  <SkeletonLoader v-else-if="isLoading" type="chart" :chart-height="chartDimensions.height" />
                   <div v-else class="text-center py-10">
-                    <p class="text-h6">資料載入中或尚無訓練紀錄...</p>
+                    <v-icon size="64" color="grey-lighten-1" class="mb-4">mdi-chart-line</v-icon>
+                    <p class="text-h6 mb-2">尚無訓練紀錄</p>
+                    <p class="text-body-2 text-medium-emphasis">開始您的第一次訓練來查看統計圖表！</p>
+                    <v-btn color="primary" class="mt-4" to="/">開始訓練</v-btn>
                   </div>
                 </v-card-text>
               </v-card>
             </v-col>
 
             <v-col cols="12" class="pa-0">
-              <!-- Add v-if to ensure data is loaded before rendering charts -->
-              <div v-if="exercisesWithSufficientData.length > 0">
+              <!-- 改進的進度圖表載入狀態 -->
+              <div v-if="!isLoading && exercisesWithSufficientData.length > 0">
                 <v-row>
                   <v-col v-for="exercise in exercisesWithSufficientData" :key="exercise._id" cols="12" md="6">
                     <v-card>
@@ -35,10 +39,28 @@
                   </v-col>
                 </v-row>
               </div>
-              <v-card v-else class="text-center pa-5">
-                <v-card-text class="pa-0">
-                  <p class="text-h6">沒有足夠訓練紀錄</p>
-                  <p class="text-body-1">請先新增動作並記錄至少兩次訓練！</p>
+              <!-- 載入中的骨架 -->
+              <div v-else-if="isLoading">
+                <v-row>
+                  <v-col v-for="i in 4" :key="i" cols="12" md="6">
+                    <SkeletonLoader type="chart" :chart-height="chartDimensions.height" />
+                  </v-col>
+                </v-row>
+              </div>
+              <!-- 空狀態 -->
+              <v-card v-else class="text-center pa-8">
+                <v-card-text>
+                  <v-icon size="80" color="grey-lighten-1" class="mb-4">mdi-chart-timeline-variant</v-icon>
+                  <p class="text-h6 mb-2">沒有足夠訓練紀錄</p>
+                  <p class="text-body-1 text-medium-emphasis mb-4">請先新增動作並記錄至少兩次訓練來查看進度圖表！</p>
+                  <div class="d-flex justify-center gap-2">
+                    <v-btn color="primary" to="/exercises" prepend-icon="mdi-weight-lifter">
+                      管理動作
+                    </v-btn>
+                    <v-btn color="secondary" to="/" prepend-icon="mdi-dumbbell">
+                      開始訓練
+                    </v-btn>
+                  </div>
                 </v-card-text>
               </v-card>
             </v-col>
@@ -55,22 +77,38 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useExerciseStore } from '@/stores/exercise'
 import { useWorkoutStore } from '@/stores/workout'
+import { useUIStore } from '@/stores/ui'
+import { useResponsiveDesign } from '@/composables/useResponsiveDesign'
+import { animateNumber, fadeIn } from '@/utils/animations'
 import ProgressChart from '@/components/ProgressChart.vue'
 import OverallWorkoutChart from '@/components/OverallWorkoutChart.vue'
 import BodyMetrics from '@/components/BodyMetrics.vue'
+import SkeletonLoader from '@/components/SkeletonLoader.vue'
 
 const exerciseStore = useExerciseStore()
 const workoutStore = useWorkoutStore()
+const uiStore = useUIStore()
+const { chartDimensions } = useResponsiveDesign()
 
 const currentTab = ref('workout')
+const isLoading = ref(true)
 
-// Fetch all workout data when the component is mounted for accurate charting
+// 獲取所有訓練數據以進行準確的圖表繪製
 onMounted(async () => {
-  await workoutStore.fetchAllWorkouts()
-  await exerciseStore.fetchExercises()
+  try {
+    isLoading.value = true
+    await Promise.all([
+      workoutStore.fetchAllWorkouts(),
+      exerciseStore.fetchExercises()
+    ])
+  } catch (error) {
+    console.error('載入儀表板數據失敗:', error)
+  } finally {
+    isLoading.value = false
+  }
 })
 
 const exercisesWithSufficientData = computed(() => {

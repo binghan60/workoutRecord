@@ -13,24 +13,8 @@
 
     <!-- Active Workout Interface -->
     <div v-else>
-      <!-- Rest Timer Overlay -->
-      <v-overlay v-model="isResting" class="d-flex align-center justify-center" persistent>
-        <v-sheet color="black" height="100vh" width="100vw" class="d-flex flex-column align-center justify-center text-center">
-          <p class="text-h4 font-weight-bold text-grey-lighten-1 mb-4">組間休息</p>
-          <p class="text-h1 font-weight-bold text-white" style="font-size: 6rem !important">
-            {{
-              Math.floor(restTimeRemaining / 60)
-                .toString()
-                .padStart(2, '0')
-            }}:{{ (restTimeRemaining % 60).toString().padStart(2, '0') }}
-          </p>
-          <div class="mt-6">
-            <v-btn @click="addRestTime(10)" color="primary" class="mx-2">+10s</v-btn>
-            <v-btn @click="addRestTime(30)" color="primary" class="mx-2">+30s</v-btn>
-          </div>
-          <v-btn @click="stopRestTimer()" color="red" size="large" class="mt-8">跳過休息</v-btn>
-        </v-sheet>
-      </v-overlay>
+      <!-- Enhanced Rest Timer -->
+      <EnhancedRestTimer :is-resting="isResting" :rest-time-remaining="restTimeRemaining" :initial-rest-time="initialRestTime" :current-exercise-name="currentExercise?.name || '訓練動作'" @add-rest-time="addRestTime" @stop-rest-timer="stopRestTimer" @reset-rest-timer="resetRestTimer" @pause-rest-timer="pauseRestTimer" />
 
       <Form ref="formRef" @submit="confirmSubmission" :initial-values="getInitialValues">
         <Field name="workoutName" type="hidden" />
@@ -69,7 +53,7 @@
               </v-row>
 
               <!-- Action Buttons -->
-              <v-row justify="center" class="mb-4">
+              <v-row justify="center" class="mb-4 mt-12">
                 <v-btn @click="removeExercise(remove)" variant="text" color="red" size="small" prepend-icon="mdi-delete-outline">移除此動作</v-btn>
                 <v-btn @click="modalStore.showExerciseModal" variant="text" color="primary" size="small" prepend-icon="mdi-plus-box-outline">新增動作</v-btn>
               </v-row>
@@ -126,6 +110,7 @@ import { Form, Field, FieldArray } from 'vee-validate'
 import { useRouter } from 'vue-router'
 import WorkoutSetRow from './WorkoutSetRow.vue'
 import WorkoutSummary from './WorkoutSummary.vue'
+import EnhancedRestTimer from './EnhancedRestTimer.vue'
 
 const templateStore = useTemplateStore()
 const workoutStore = useWorkoutStore()
@@ -145,6 +130,8 @@ const restTimerInterval = ref(null)
 const restStartTime = ref(null)
 const restEndTime = ref(null)
 const lastCompletedSetInfo = ref(null)
+const initialRestTime = ref(90)
+const isRestPaused = ref(false)
 const exercisePushFn = ref(null)
 const exerciseInsertFn = ref(null)
 const completedWorkoutForToday = ref(null)
@@ -178,6 +165,15 @@ if (savedStateJSON) {
         if (newRemainingTime > 0) {
           restStartTime.value = savedState.restStartTime
           lastCompletedSetInfo.value = savedState.lastCompletedSetInfo
+
+          // 恢復初始休息時間和暫停狀態
+          if (savedState.initialRestTime) {
+            initialRestTime.value = savedState.initialRestTime
+          }
+          if (savedState.isRestPaused !== undefined) {
+            isRestPaused.value = savedState.isRestPaused
+          }
+
           startRestTimer(newRemainingTime)
         }
       }
@@ -233,6 +229,9 @@ const saveState = () => {
     restStartTime: restStartTime.value,
     restEndTime: restEndTime.value,
     lastCompletedSetInfo: lastCompletedSetInfo.value,
+    initialRestTime: initialRestTime.value,
+    isRestPaused: isRestPaused.value,
+    restTimeRemaining: restTimeRemaining.value,
   }
   localStorage.setItem(WORKOUT_IN_PROGRESS_KEY, JSON.stringify(stateToSave))
 }
@@ -401,6 +400,8 @@ function startRestTimer(duration) {
   stopRestTimer(false)
   isResting.value = true
   restTimeRemaining.value = duration
+  initialRestTime.value = duration
+  isRestPaused.value = false
 
   // 如果 restStartTime 還沒有被設定 (表示這不是一次恢復操作)，才設定為現在
   if (!restStartTime.value) {
@@ -410,9 +411,11 @@ function startRestTimer(duration) {
   restEndTime.value = restStartTime.value + duration * 1000 // Calculate end time
 
   restTimerInterval.value = setInterval(() => {
-    restTimeRemaining.value--
-    if (restTimeRemaining.value <= 0) {
-      stopRestTimer()
+    if (!isRestPaused.value) {
+      restTimeRemaining.value--
+      if (restTimeRemaining.value <= 0) {
+        stopRestTimer()
+      }
     }
   }, 1000)
 }
@@ -422,6 +425,45 @@ function addRestTime(seconds) {
   if (restEndTime.value) {
     restEndTime.value += seconds * 1000
   }
+  // 確保時間不會變成負數
+  if (restTimeRemaining.value < 0) {
+    restTimeRemaining.value = 0
+  }
+  // 如果增加時間超過了初始時間，更新初始時間基準
+  if (restTimeRemaining.value > initialRestTime.value) {
+    initialRestTime.value = restTimeRemaining.value
+  }
+
+  // 立即保存狀態，包含更新的休息時間
+  saveState()
+}
+
+// 重置休息計時器到初始時間
+function resetRestTimer() {
+  restTimeRemaining.value = initialRestTime.value
+  if (restStartTime.value) {
+    restEndTime.value = restStartTime.value + initialRestTime.value * 1000
+  }
+
+  // 保存重置後的狀態
+  saveState()
+}
+
+// 暫停/繼續休息計時器
+function pauseRestTimer(paused) {
+  isRestPaused.value = paused
+  if (paused) {
+    // 暫停時更新結束時間
+    const remainingMs = restTimeRemaining.value * 1000
+    restEndTime.value = Date.now() + remainingMs
+  } else {
+    // 繼續時重新計算開始時間
+    restStartTime.value = Date.now() - (initialRestTime.value - restTimeRemaining.value) * 1000
+    restEndTime.value = Date.now() + restTimeRemaining.value * 1000
+  }
+
+  // 保存暫停/繼續狀態
+  saveState()
 }
 
 const changeExercise = (direction) => {
@@ -435,8 +477,24 @@ const changeExercise = (direction) => {
 const removeExercise = (remove) => {
   const exerciseName = currentExercise.value?.name
   if (!exerciseName) return
+
   modalStore.showConfirmation('移除動作', `確定要從今日訓練移除「${exerciseName}」嗎？`, () => {
-    remove(currentExerciseIndex.value)
+    const totalExercises = currentExercises.value.length
+    const currentIndex = currentExerciseIndex.value
+
+    // 移除動作
+    remove(currentIndex)
+
+    // 防呆邏輯：調整當前動作索引
+    if (totalExercises <= 1) {
+      // 如果這是最後一個動作，重置索引
+      currentExerciseIndex.value = 0
+    } else if (currentIndex >= totalExercises - 1) {
+      // 如果移除的是最後一個動作，回到前一個
+      currentExerciseIndex.value = Math.max(0, currentIndex - 1)
+    }
+    // 如果移除的是中間的動作，索引保持不變（因為後面的動作會前移）
+
     toast.info(`動作「${exerciseName}」已移除。`)
   })
 }
@@ -535,5 +593,6 @@ const isWorkoutActive = computed(() => isCheckComplete.value && !completedWorkou
 defineExpose({
   discardWorkout,
   isWorkoutActive,
+  currentExercises,
 })
 </script>

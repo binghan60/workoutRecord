@@ -79,15 +79,13 @@ const metricLabels = {
   thigh: '大腿 (cm)',
 }
 
-const handleSubmit = () => {
-  const recordData = {
-    date: newRecord.value.date,
-  }
+const saveRecord = (data) => {
   let hasData = false
-  // Start from index 1 to skip the date field
-  for (const key in newRecord.value) {
+  const recordData = { date: data.date }
+
+  for (const key in data) {
     if (key === 'date') continue
-    const value = newRecord.value[key]
+    const value = data[key]
     if (value !== null && value !== '' && !isNaN(parseFloat(value))) {
       recordData[key] = parseFloat(value)
       hasData = true
@@ -96,9 +94,47 @@ const handleSubmit = () => {
 
   if (hasData) {
     bodyMetricsStore.addRecord(recordData)
-    // modalStore.hideBodyMetricsModal() // Let the store handle closing
   } else {
     toast.error('請至少填寫一項有效的身體數值')
+  }
+}
+
+const handleSubmit = () => {
+  const newDate = new Date(newRecord.value.date)
+  const existingRecord = bodyMetricsStore.records.find((record) => {
+    const existingDate = new Date(record.date)
+    return (
+      existingDate.getFullYear() === newDate.getFullYear() &&
+      existingDate.getMonth() === newDate.getMonth() &&
+      existingDate.getDate() === newDate.getDate()
+    )
+  })
+
+  if (!existingRecord) {
+    saveRecord(newRecord.value)
+    return
+  }
+
+  const conflictingMetrics = []
+  for (const key in newRecord.value) {
+    if (key === 'date') continue
+    const newValue = newRecord.value[key]
+    const existingValue = existingRecord[key]
+
+    if (newValue !== null && newValue !== '' && !isNaN(parseFloat(newValue)) && existingValue != null) {
+      const newDisplayValue = parseFloat(newValue)
+      const metricLabel = metricLabels[key].split(' ')[0] // e.g., "體重"
+      conflictingMetrics.push(`${metricLabel}: ${existingValue} → ${newDisplayValue}`)
+    }
+  }
+
+  if (conflictingMetrics.length > 0) {
+    const message = `您選擇的日期已有紀錄，確定要覆蓋嗎？<br/><br/><b>變更如下：</b><br/>- ${conflictingMetrics.join('<br/>- ')}`
+    modalStore.showConfirmation('覆蓋確認', message, () => {
+      saveRecord(newRecord.value)
+    })
+  } else {
+    saveRecord(newRecord.value)
   }
 }
 </script>
