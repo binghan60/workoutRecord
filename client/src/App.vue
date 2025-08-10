@@ -122,16 +122,7 @@
 
     <!-- 主要內容 -->
     <v-main class="main-content">
-       <!-- PWA Status Banner -->
-      <v-banner v-if="uiStore.isOffline || uiStore.isSyncing" lines="one" :color="uiStore.isOffline ? 'warning' : 'info'" class="status-banner" sticky>
-        <template v-slot:prepend>
-          <v-icon v-if="uiStore.isOffline">mdi-wifi-off</v-icon>
-          <v-progress-circular v-else indeterminate size="20" width="2"></v-progress-circular>
-        </template>
-        <div class="font-weight-medium">
-          {{ uiStore.isOffline ? '您目前處於離線狀態' : '正在同步資料...' }}
-        </div>
-      </v-banner>
+
 
       <router-view v-slot="{ Component }">
         <transition name="page-transition" mode="out-in" @enter="onPageEnter" @leave="onPageLeave">
@@ -184,6 +175,7 @@ const templateStore = useTemplateStore()
 const { mobile, responsiveSizes, drawerBehavior, typographyScale, density } = useResponsiveDesign()
 
 const isSyncing = ref(false)
+const lastSyncAt = ref(0)
 
 const statusLight = computed(() => {
   if (uiStore.isOffline) {
@@ -213,6 +205,7 @@ const syncQueue = async () => {
     uiStore.setSyncing(true)
     console.log(`Sync started: ${jobs.length} items to process.`)
 
+    let processedCount = 0
     for (const job of jobs) {
       try {
         switch (job.action) {
@@ -227,6 +220,7 @@ const syncQueue = async () => {
             break
         }
         await db.sync_queue.delete(job.id)
+        processedCount++
         console.log(`Job ${job.id || job.action} synced successfully.`)
       } catch (error) {
         console.error(`Failed to sync job ${job.id || job.action}:`, error)
@@ -240,10 +234,20 @@ const syncQueue = async () => {
 
     isSyncing.value = false
     uiStore.setSyncing(false)
-    
-    if (jobs.length > 0) {
-      console.log('Sync finished. Reloading for data consistency.')
-      window.location.reload()
+
+    const remaining = await db.sync_queue.count()
+    if (processedCount > 0 && remaining === 0) {
+      const now = Date.now()
+      const last = Number(sessionStorage.getItem('lastSyncAt') || '0')
+      if (now - last > 10000) {
+        sessionStorage.setItem('lastSyncAt', String(now))
+        console.log('Sync finished with changes. Reloading for data consistency.')
+        window.location.reload()
+      } else {
+        console.log('Sync finished with changes, but skipping reload to avoid rapid loops.')
+      }
+    } else {
+      console.log('Sync finished. No successful changes or jobs remain; skipping reload.')
     }
   } catch (error) {
     console.error('Failed to initialize database for sync:', error)
