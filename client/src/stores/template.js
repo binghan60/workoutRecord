@@ -214,16 +214,19 @@ export const useTemplateStore = defineStore('template', () => {
     await db.schedules.put(scheduleToSave) // Optimistic update to local DB
 
     if (!navigator.onLine) {
-        console.log("Offline: Queuing schedule update.")
+        console.log("🔌 Offline: Queuing schedule update for endpoint: /schedule")
+        console.log("📋 Schedule payload:", idOnlySchedule)
         try {
-          await db.sync_queue.add({
+          const job = {
               action: 'update',
               endpoint: '/schedule',
               payload: idOnlySchedule,
               timestamp: new Date().toISOString()
-          })
+          }
+          await db.sync_queue.add(job);
+          console.log('📤 Schedule job added to sync queue:', job)
         } catch (queueError) {
-          console.warn('Failed to queue schedule update for sync:', queueError)
+          console.error('❌ Failed to queue schedule update for sync:', queueError)
         }
         return 
     }
@@ -237,16 +240,18 @@ export const useTemplateStore = defineStore('template', () => {
         // 若需要，可選擇同步 store：schedule.value = scheduleFields
       })
       .catch(async (error) => {
-        console.error('Failed to update schedule online, queuing for retry:', error)
+        console.error('❌ Failed to update schedule online, queuing for retry:', error)
         try {
-          await db.sync_queue.add({
+          const retryJob = {
             action: 'update',
             endpoint: '/schedule',
             payload: idOnlySchedule,
             timestamp: new Date().toISOString()
-          })
+          }
+          await db.sync_queue.add(retryJob)
+          console.log('📤 Schedule retry job added to sync queue:', retryJob)
         } catch (e) {
-          console.error('Failed to enqueue schedule update:', e)
+          console.error('❌ Failed to enqueue schedule update:', e)
         }
       })
   }

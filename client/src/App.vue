@@ -213,7 +213,16 @@ const statusLight = computed(() => {
 })
 
 const syncQueue = async () => {
-  if (!navigator.onLine || authStore.isGuest || isSyncing.value) {
+  if (!navigator.onLine) {
+    console.log('❌ Sync skipped: offline')
+    return
+  }
+  if (authStore.isGuest) {
+    console.log('❌ Sync skipped: guest mode')
+    return
+  }
+  if (isSyncing.value) {
+    console.log('❌ Sync skipped: already syncing')
     return
   }
 
@@ -223,12 +232,14 @@ const syncQueue = async () => {
     
     const jobs = await db.sync_queue.toArray()
     if (jobs.length === 0) {
+      console.log('✅ Sync queue is empty - nothing to sync')
       return
     }
     
     isSyncing.value = true
     uiStore.setSyncing(true)
-    console.log(`Sync started: ${jobs.length} items to process.`)
+    console.log(`🔄 Sync started: ${jobs.length} items to process`)
+    jobs.forEach(job => console.log(`  - ${job.action} ${job.endpoint}`))
 
     // Track affected endpoints to refresh only necessary stores
     let processedCount = 0
@@ -283,12 +294,13 @@ const syncQueue = async () => {
             break
           }
         }
+        // Only delete job if sync was successful
         await db.sync_queue.delete(job.id)
         processedCount++
         affected.add(endpointPath)
-        console.log(`Job ${job.id || job.action} synced successfully.`)
+        console.log(`✅ Job ${job.id || job.action} synced successfully.`)
       } catch (error) {
-        console.error(`Failed to sync job ${job.id || job.action}:`, error)
+        console.error(`❌ Failed to sync job ${job.id || job.action}:`, error)
         if (error.response && error.response.status === 401) {
           console.warn('Sync paused due to authentication error. Please log in again to resume synchronization.')
           toast.error('登入已過期，請重新登入以同步離線資料。')
@@ -296,6 +308,9 @@ const syncQueue = async () => {
           // Exit the loop gracefully and allow retry after re-authentication
           break
         }
+        // For other errors, keep the job in queue for retry later
+        console.warn(`⏳ Job ${job.id || job.action} will be retried later due to: ${error.message}`)
+        // DO NOT delete the job here - it stays in queue for next retry
       }
     }
 

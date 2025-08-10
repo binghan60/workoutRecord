@@ -129,7 +129,7 @@ export class DataService {
 
     if (!navigator.onLine) {
       // Always perform optimistic UI update and queue background sync
-      console.log('🔌 Offline: Queuing ADD operation for', this.dbTable);
+      console.log('🔌 Offline: Queuing ADD operation for', this.dbTable, 'endpoint:', this.apiEndpoint);
       try {
         // 深度克隆數據以確保 IndexedDB 兼容性
         const cleanData = JSON.parse(JSON.stringify(data));
