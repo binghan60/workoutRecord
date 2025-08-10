@@ -1,6 +1,6 @@
 <template>
   <!-- 增強的載入覆蓋層，提供更好的用戶體驗 -->
-  <v-overlay :model-value="uiStore.isLoading" class="loading-overlay d-flex align-center justify-center" persistent :opacity="0.8">
+  <v-overlay :model-value="uiStore.showGlobalOverlay" class="loading-overlay d-flex align-center justify-center" persistent :opacity="0.8">
     <v-card class="loading-card pa-6 text-center" elevation="8" rounded="xl" max-width="320">
       <!-- 動畫載入指示器 -->
       <div class="loading-animation mb-4">
@@ -57,7 +57,7 @@ const loadingSubtext = computed(() => loadingMessages[currentMessageIndex.value]
 let messageInterval = null
 
 watch(
-  () => uiStore.isLoading,
+  () => uiStore.showGlobalOverlay,
   (isLoading) => {
     if (isLoading) {
       currentMessageIndex.value = 0

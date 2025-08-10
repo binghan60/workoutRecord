@@ -26,15 +26,21 @@ export const useUIStore = defineStore('ui', () => {
     }
   })
 
-  // Loading Management
+  // Loading Management (opt-in global overlay)
   const isLoading = ref(false)
+  const showGlobalOverlay = ref(false)
 
-  async function withLoading(asyncFn) {
-    isLoading.value = true
+  function setLoading(loading, { global = false } = {}) {
+    isLoading.value = !!loading
+    showGlobalOverlay.value = !!global && !!loading
+  }
+
+  async function withLoading(asyncFn, { global = false } = {}) {
+    setLoading(true, { global })
     try {
       return await asyncFn()
     } finally {
-      isLoading.value = false
+      setLoading(false, { global })
     }
   }
 

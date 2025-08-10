@@ -14,7 +14,7 @@ apiClient.interceptors.request.use(
     const showSpinner = config.headers && config.headers['X-Show-Spinner'] === 'true'
     if (showSpinner) {
       const uiStore = useUIStore()
-      uiStore.isLoading = true
+      uiStore.setLoading(true, { global: true })
     }
     // Add token to headers if it exists
     const token = localStorage.getItem('token')
@@ -25,7 +25,7 @@ apiClient.interceptors.request.use(
   },
   (error) => {
     const uiStore = useUIStore()
-    uiStore.isLoading = false
+    uiStore.setLoading(false, { global: true })
     return Promise.reject(error)
   },
 )
@@ -35,13 +35,13 @@ apiClient.interceptors.response.use(
   (response) => {
     const showSpinner = response.config && response.config.headers && response.config.headers['X-Show-Spinner'] === 'true'
     const uiStore = useUIStore()
-    if (showSpinner) uiStore.isLoading = false
+    if (showSpinner) uiStore.setLoading(false, { global: true })
     return response
   },
   (error) => {
     const showSpinner = error.config && error.config.headers && error.config.headers['X-Show-Spinner'] === 'true'
     const uiStore = useUIStore()
-    if (showSpinner) uiStore.isLoading = false
+    if (showSpinner) uiStore.setLoading(false, { global: true })
     // You can add global error handling here, e.g., show a toast notification
     console.error('API Error:', error.response?.data?.message || error.message)
 
