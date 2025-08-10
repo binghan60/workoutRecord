@@ -82,20 +82,6 @@ app.config.globalProperties.$toast = useToast()
 app.use(HighchartsVue, { Highcharts })
 app.use(router)
 
-// 註冊 Service Worker
-const updateSW = registerSW({
-  onNeedRefresh() {
-    console.log('App update available')
-  },
-  onOfflineReady() {
-    console.log('App ready to work offline')
-  },
-  onRegistered(r) {
-    console.log('Service Worker registered:', r)
-  },
-  onRegisterError(error) {
-    console.error('Service Worker registration error:', error)
-  },
-})
+import './pwa.js'
 
 app.mount('#app')
