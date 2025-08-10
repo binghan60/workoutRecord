@@ -129,12 +129,13 @@ export class DataService {
         
         console.log('📝 Creating optimistic item:', optimisticItem);
         
-        // 確保 payload 也是可序列化的
+        // 確保 payload 也是可序列化的，並記錄關聯的離線 ID
         const job = { 
           action: 'add', 
           endpoint: this.apiEndpoint, 
           payload: JSON.parse(JSON.stringify(data)), 
-          timestamp: new Date().toISOString() 
+          timestamp: new Date().toISOString(),
+          offlineId: optimisticItem._id // 記錄離線 ID 用於後續清理
         };
         
         // 先添加到同步佇列
@@ -213,34 +214,64 @@ export class DataService {
     if (id.toString().startsWith('offline_')) {
       console.log('🔌 Deleting offline-created item, removing from local DB only');
       await db[this.dbTable].delete(id);
-      // 也需要從同步佇列中移除對應的新增任務
-      // 針對離線建立的課表，需要找到對應的 ADD 任務並移除
+      // 對於離線建立的項目，需要清理同步佇列中對應的新增任務
       try {
-        console.log('🔍 Looking for sync queue jobs to clean up for offline item:', id);
+        console.log('🔍 Cleaning sync queue for offline-created item:', id);
         
-        // 使用 endpoint 索引查詢，這樣更安全
-        const jobs = await db.sync_queue.where('endpoint').equals(this.apiEndpoint).toArray();
-        console.log(`📋 Found ${jobs.length} jobs for endpoint ${this.apiEndpoint}`);
+        // 從 id 中提取時間戳
+        const itemTimestamp = parseInt(id.replace('offline_', ''));
+        console.log('📅 Item timestamp:', itemTimestamp, new Date(itemTimestamp));
         
-        for (const job of jobs) {
-          // 檢查是否是新增任務，且 payload 包含相同的資料
-          if (job.action === 'add' && job.payload) {
-            // 對於離線建立的項目，payload 中不會有 _id，需要比較其他欄位
-            // 比較課表名稱和時間戳來判斷是否為同一個項目
-            const payloadTime = new Date(job.timestamp);
-            const itemTime = new Date(id.replace('offline_', ''));
-            const timeDiff = Math.abs(payloadTime.getTime() - itemTime.getTime());
-            
-            // 如果時間差在 1 分鐘內，且是同類型的項目，就認為是同一個
-            if (timeDiff < 60000 && job.payload.name) {
+        // 查找所有相關的任務
+        const allJobs = await db.sync_queue.where('endpoint').equals(this.apiEndpoint).toArray();
+        console.log(`📋 Found ${allJobs.length} jobs for endpoint ${this.apiEndpoint}`);
+        
+        let removedCount = 0;
+        for (const job of allJobs) {
+          if (job.action === 'add') {
+            // 優先使用 offlineId 進行精確匹配
+            if (job.offlineId === id) {
               await db.sync_queue.delete(job.id);
-              console.log('🗑️ Removed corresponding add job from sync queue:', job.id);
-              break; // 找到一個就夠了
+              console.log('🗑️ Removed sync job by offlineId:', job.id, 'offlineId:', job.offlineId);
+              removedCount++;
+              continue;
+            }
+            
+            // 後備方案：比較時間戳（允許 5 秒的誤差）
+            if (job.payload) {
+              const jobTimestamp = new Date(job.timestamp).getTime();
+              const timeDiff = Math.abs(jobTimestamp - itemTimestamp);
+              
+              console.log(`🕐 Job ${job.id} timestamp diff: ${timeDiff}ms`);
+              
+              if (timeDiff < 5000) { // 5 秒內
+                await db.sync_queue.delete(job.id);
+                console.log('🗑️ Removed sync job by timestamp:', job.id, 'with payload:', job.payload.name);
+                removedCount++;
+              }
             }
           }
         }
+        
+        if (removedCount === 0) {
+          console.log('⚠️ No matching sync jobs found to remove');
+          // 如果沒找到匹配的，清理所有最近的 ADD 任務作為後備
+          const recentJobs = allJobs.filter(job => {
+            if (job.action !== 'add') return false;
+            const jobTime = new Date(job.timestamp).getTime();
+            return (Date.now() - jobTime) < 60000; // 1 分鐘內的任務
+          });
+          
+          if (recentJobs.length > 0) {
+            await db.sync_queue.delete(recentJobs[recentJobs.length - 1].id);
+            console.log('🗑️ Removed most recent ADD job as fallback');
+          }
+        } else {
+          console.log(`✅ Successfully removed ${removedCount} sync jobs`);
+        }
+        
       } catch (error) {
-        console.warn('⚠️ Could not clean sync queue:', error);
+        console.error('❌ Failed to clean sync queue:', error);
         // 不拋出錯誤，因為這不是關鍵操作
       }
       return true;
