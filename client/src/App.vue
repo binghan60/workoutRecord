@@ -185,6 +185,11 @@ window.addEventListener('rovodev:local-data-changed', (e) => {
   } catch {}
 })
 
+// Listen to sync queue changes to update badge count
+window.addEventListener('rovodev:sync-queue-changed', () => {
+  updateSyncQueueCount()
+})
+
 const drawer = ref(null)
 const toast = useToast()
 const route = useRoute()
@@ -365,6 +370,9 @@ const syncQueue = async () => {
 
     isSyncing.value = false
     uiStore.setSyncing(false)
+    
+    // Update sync queue count after sync
+    updateSyncQueueCount()
 
     // Soft refresh: re-fetch affected stores instead of reloading the page
     if (processedCount > 0) {
@@ -429,6 +437,9 @@ onMounted(() => {
   
   // Initial check in case the app loads offline
   uiStore.setOfflineStatus(!navigator.onLine)
+  // Update sync queue count initially
+  updateSyncQueueCount()
+  
   // If app starts online, attempt a sync in case there are leftover jobs
   if (navigator.onLine) {
     syncQueue()
@@ -438,6 +449,8 @@ onMounted(() => {
     if (navigator.onLine && !isSyncing.value) {
       syncQueue()
     }
+    // Also update queue count periodically
+    updateSyncQueueCount()
   }, 15000)
   
   // Re-run sync when user logs in again and app is online
@@ -466,6 +479,19 @@ watchEffect(() => {
   theme.global.name.value = uiStore.theme
 })
 
+// Get sync queue count for badge
+const syncQueueCount = ref(0)
+
+const updateSyncQueueCount = async () => {
+  try {
+    await initializeDB()
+    const jobs = await db.sync_queue.toArray()
+    syncQueueCount.value = jobs.length
+  } catch (error) {
+    syncQueueCount.value = 0
+  }
+}
+
 const navItems = computed(() => [
   { title: '開始訓練', icon: 'mdi-dumbbell', to: '/' },
   { title: '儀表板', icon: 'mdi-view-dashboard', to: '/dashboard' },
@@ -473,6 +499,7 @@ const navItems = computed(() => [
   { title: '動作庫', icon: 'mdi-weight-lifter', to: '/exercises', badge: exerciseStore.allExercises.filter(ex => ex.isCustom).length || null },
   { title: '訓練範本', icon: 'mdi-clipboard-list', to: '/templates', badge: templateStore.templates.filter(t => t.isCustom).length || null },
   { title: '訓練排程', icon: 'mdi-calendar-month', to: '/schedule' },
+  { title: '同步管理', icon: 'mdi-sync', to: '/sync-queue', badge: syncQueueCount.value || null },
 ])
 
 const currentRouteTitle = computed(() => {

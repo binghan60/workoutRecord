@@ -53,6 +53,12 @@ const router = createRouter({
       component: () => import('../views/ScheduleView.vue'),
       meta: { requiresAuth: true },
     },
+    {
+      path: '/sync-queue',
+      name: 'sync-queue',
+      component: () => import('../views/SyncQueueView.vue'),
+      meta: { requiresAuth: true },
+    },
   ],
 })
 

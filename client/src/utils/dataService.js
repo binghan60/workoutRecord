@@ -159,6 +159,9 @@ export class DataService {
         await db.sync_queue.add(job);
         console.log('📤 Job added to sync queue');
         
+        // Trigger sync queue count update
+        try { window.dispatchEvent(new CustomEvent('rovodev:sync-queue-changed')) } catch {}
+        
         // 再添加到本地資料庫
         await db[this.dbTable].put(optimisticItem);
         console.log(`✅ Offline item added to ${this.dbTable}:`, optimisticItem);

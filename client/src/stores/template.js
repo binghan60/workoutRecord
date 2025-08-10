@@ -228,6 +228,9 @@ export const useTemplateStore = defineStore('template', () => {
           }
           await db.sync_queue.add(job);
           console.log('📤 Schedule job added to sync queue:', job)
+          
+          // Trigger sync queue count update
+          try { window.dispatchEvent(new CustomEvent('rovodev:sync-queue-changed')) } catch {}
         } catch (queueError) {
           console.error('❌ Failed to queue schedule update for sync:', queueError)
         }
@@ -253,6 +256,9 @@ export const useTemplateStore = defineStore('template', () => {
           }
           await db.sync_queue.add(retryJob)
           console.log('📤 Schedule retry job added to sync queue:', retryJob)
+          
+          // Trigger sync queue count update
+          try { window.dispatchEvent(new CustomEvent('rovodev:sync-queue-changed')) } catch {}
         } catch (e) {
           console.error('❌ Failed to enqueue schedule update:', e)
         }
