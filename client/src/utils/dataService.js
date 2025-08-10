@@ -41,11 +41,27 @@ export class DataService {
           return await db[this.dbTable].toArray();
         }
 
+        // Preserve offline-created items so they are not lost before they sync
+        let offlineItems = []
+        try {
+          if (db[this.dbTable] && db[this.dbTable].where) {
+            offlineItems = await db[this.dbTable].where('_id').startsWith('offline_').toArray()
+          }
+        } catch (e) {
+          console.warn(`Failed to read offline items for ${this.dbTable}:`, e)
+        }
+
         await db[this.dbTable].clear();
         await db[this.dbTable].bulkAdd(data);
+        if (offlineItems.length > 0) {
+          // Re-add offline items so they stay visible until sync completes
+          await db[this.dbTable].bulkPut(offlineItems)
+          console.log(`Preserved ${offlineItems.length} offline item(s) in "${this.dbTable}".`)
+        }
         console.log(`Cached ${data.length} items to IndexedDB table "${this.dbTable}".`);
 
-        return data;
+        // Return combined view so UI shows offline items too
+        return [...data, ...offlineItems];
       } catch (error) {
         console.error(`API fetch for ${this.dbTable} failed, falling back to local data.`, error);
         return await db[this.dbTable].toArray();
@@ -147,6 +163,9 @@ export class DataService {
         await db[this.dbTable].put(optimisticItem);
         console.log(`✅ Offline item added to ${this.dbTable}:`, optimisticItem);
         
+        // Trigger a soft refresh to include this item in views that rely on fetchAll
+        try { window.dispatchEvent(new CustomEvent('rovodev:local-data-changed', { detail: { table: this.dbTable, action: 'add', id: optimisticItem._id } })) } catch {}
+        
         return optimisticItem;
       } catch (error) {
         console.error('❌ Failed to create offline item:', error);
@@ -215,6 +234,7 @@ export class DataService {
 
     // Online: optimistic local update + background request
     await db[this.dbTable].update(id, data)
+    try { window.dispatchEvent(new CustomEvent('rovodev:local-data-changed', { detail: { table: this.dbTable, action: 'update', id } })) } catch {}
     apiClient.put(`${this.apiEndpoint}/${id}`, data, { headers: { 'X-Background-Sync': 'true' } })
       .then(async (response) => {
         const savedData = response.data.data || response.data
@@ -306,6 +326,7 @@ export class DataService {
     // 從本地資料庫刪除（樂觀 UI）
     await db[this.dbTable].delete(id);
     console.log(`✅ Item ${id} deleted from local ${this.dbTable}`);
+    try { window.dispatchEvent(new CustomEvent('rovodev:local-data-changed', { detail: { table: this.dbTable, action: 'delete', id } })) } catch {}
 
     if (!navigator.onLine) {
       console.log('🔌 Offline: Queuing DELETE operation for server sync');

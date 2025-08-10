@@ -167,6 +167,24 @@ import { useTemplateStore } from '@/stores/template'
 import { useWorkoutStore } from '@/stores/workout'
 import { useBodyMetricsStore } from '@/stores/bodyMetrics'
 
+// Listen to local data changes to trigger soft refreshes of affected views
+window.addEventListener('rovodev:local-data-changed', (e) => {
+  try {
+    const detail = e?.detail || {}
+    // We will refresh particular stores based on which table changed
+    if (detail.table === 'workouts') {
+      workoutStore.fetchAllWorkouts()
+    } else if (detail.table === 'templates') {
+      templateStore.fetchTemplates()
+      templateStore.fetchSchedule()
+    } else if (detail.table === 'schedules' || detail.table === 'schedule') {
+      templateStore.fetchSchedule()
+    } else if (detail.table === 'bodyMetrics') {
+      bodyMetricsStore.fetchRecords()
+    }
+  } catch {}
+})
+
 const drawer = ref(null)
 const toast = useToast()
 const route = useRoute()
@@ -182,6 +200,7 @@ const { mobile, responsiveSizes, drawerBehavior, typographyScale, density } = us
 
 const isSyncing = ref(false)
 const lastSyncAt = ref(0)
+const syncIntervalId = ref(null)
 
 const statusLight = computed(() => {
   if (uiStore.isOffline) {
@@ -216,20 +235,57 @@ const syncQueue = async () => {
     const affected = new Set()
     for (const job of jobs) {
       try {
+        const endpointPath = job.endpoint.split('?')[0]
+        const mapEndpointToTable = (ep) => {
+          if (ep.startsWith('/workouts')) return 'workouts'
+          if (ep.startsWith('/templates')) return 'templates'
+          if (ep.startsWith('/body-metrics')) return 'bodyMetrics'
+          if (ep.startsWith('/exercises')) return 'exercises'
+          if (ep.startsWith('/schedule')) return 'schedules'
+          return null
+        }
+        const table = mapEndpointToTable(endpointPath)
+
         switch (job.action) {
-          case 'add':
-            await apiClient.post(job.endpoint, job.payload)
+          case 'add': {
+            const res = await apiClient.post(job.endpoint, job.payload)
+            const saved = res?.data?.data ?? res?.data
+            if (table && saved) {
+              try {
+                if (job.offlineId) {
+                  await db[table].delete(job.offlineId)
+                }
+                await db[table].put(saved)
+              } catch (e) {
+                console.warn('Failed to update local cache after add:', e)
+              }
+            }
             break
-          case 'update':
-            await apiClient.put(job.endpoint, job.payload)
+          }
+          case 'update': {
+            const res = await apiClient.put(job.endpoint, job.payload)
+            const saved = res?.data?.data ?? res?.data
+            if (table && saved) {
+              try {
+                // For schedule, we prefer soft refresh below; for others we can upsert
+                if (table !== 'schedules') {
+                  await db[table].put(saved)
+                }
+              } catch (e) {
+                console.warn('Failed to update local cache after update:', e)
+              }
+            }
             break
-          case 'delete':
+          }
+          case 'delete': {
             await apiClient.delete(job.endpoint)
+            // Local cache already removed optimistically; nothing else
             break
+          }
         }
         await db.sync_queue.delete(job.id)
         processedCount++
-        affected.add(job.endpoint.split('?')[0])
+        affected.add(endpointPath)
         console.log(`Job ${job.id || job.action} synced successfully.`)
       } catch (error) {
         console.error(`Failed to sync job ${job.id || job.action}:`, error)
@@ -290,23 +346,47 @@ const handleOffline = () => {
 onMounted(() => {
   window.addEventListener('online', handleOnline)
   window.addEventListener('offline', handleOffline)
+  // Also try syncing when tab/app regains focus
+  const handleVisibility = () => {
+    if (document.visibilityState === 'visible' && navigator.onLine) {
+      syncQueue()
+    }
+  }
+  document.addEventListener('visibilitychange', handleVisibility)
+  
   // Initial check in case the app loads offline
   uiStore.setOfflineStatus(!navigator.onLine)
   // If app starts online, attempt a sync in case there are leftover jobs
   if (navigator.onLine) {
     syncQueue()
   }
+  // Periodic retry to cover cases where 'online' event didn't fire
+  syncIntervalId.value = setInterval(() => {
+    if (navigator.onLine && !isSyncing.value) {
+      syncQueue()
+    }
+  }, 15000)
+  
   // Re-run sync when user logs in again and app is online
   watch(() => authStore.token, (newToken) => {
     if (newToken && navigator.onLine) {
       syncQueue()
     }
   })
+  
+  // Cleanup extra listener on unmount
+  onBeforeUnmount(() => {
+    document.removeEventListener('visibilitychange', handleVisibility)
+  })
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('online', handleOnline)
   window.removeEventListener('offline', handleOffline)
+  if (syncIntervalId.value) {
+    clearInterval(syncIntervalId.value)
+    syncIntervalId.value = null
+  }
 })
 
 watchEffect(() => {
