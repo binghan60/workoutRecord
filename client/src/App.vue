@@ -122,8 +122,6 @@
 
     <!-- 主要內容 -->
     <v-main class="main-content">
-
-
       <router-view v-slot="{ Component }">
         <transition name="page-transition" mode="out-in" @enter="onPageEnter" @leave="onPageLeave">
           <component :is="Component" />
@@ -211,11 +209,11 @@ const syncIntervalId = ref(null)
 const updateScheduleReferences = async (offlineId, newId) => {
   try {
     console.log(`Updating schedule references: ${offlineId} -> ${newId}`)
-    
+
     // Update template store schedule
     for (const day in templateStore.schedule) {
       if (Array.isArray(templateStore.schedule[day])) {
-        templateStore.schedule[day] = templateStore.schedule[day].map(template => {
+        templateStore.schedule[day] = templateStore.schedule[day].map((template) => {
           if (template._id === offlineId) {
             return { ...template, _id: newId }
           }
@@ -223,7 +221,7 @@ const updateScheduleReferences = async (offlineId, newId) => {
         })
       }
     }
-    
+
     // Update local database schedule
     const scheduleRecord = await db.schedules.get('currentUserSchedule')
     if (scheduleRecord) {
@@ -231,7 +229,7 @@ const updateScheduleReferences = async (offlineId, newId) => {
       for (const day in scheduleRecord) {
         if (Array.isArray(scheduleRecord[day])) {
           const originalLength = scheduleRecord[day].length
-          scheduleRecord[day] = scheduleRecord[day].map(template => {
+          scheduleRecord[day] = scheduleRecord[day].map((template) => {
             if ((template._id || template) === offlineId) {
               updated = true
               return typeof template === 'object' ? { ...template, _id: newId } : newId
@@ -278,17 +276,17 @@ const syncQueue = async () => {
   try {
     // 確保資料庫已初始化
     await initializeDB()
-    
+
     const jobs = await db.sync_queue.toArray()
     if (jobs.length === 0) {
       console.log('✅ Sync queue is empty - nothing to sync')
       return
     }
-    
+
     isSyncing.value = true
     uiStore.setSyncing(true)
     console.log(`🔄 Sync started: ${jobs.length} items to process`)
-    jobs.forEach(job => console.log(`  - ${job.action} ${job.endpoint}`))
+    jobs.forEach((job) => console.log(`  - ${job.action} ${job.endpoint}`))
 
     // Track affected endpoints to refresh only necessary stores
     let processedCount = 0
@@ -314,7 +312,7 @@ const syncQueue = async () => {
               try {
                 if (job.offlineId) {
                   await db[table].delete(job.offlineId)
-                  
+
                   // Special handling for templates: update schedule references
                   if (table === 'templates' && job.offlineId && saved._id) {
                     await updateScheduleReferences(job.offlineId, saved._id)
@@ -370,7 +368,7 @@ const syncQueue = async () => {
 
     isSyncing.value = false
     uiStore.setSyncing(false)
-    
+
     // Update sync queue count after sync
     updateSyncQueueCount()
 
@@ -379,27 +377,27 @@ const syncQueue = async () => {
       const endpoints = Array.from(affected)
       const refreshTasks = []
       let scheduleNeedsUpdate = false
-      
-      if (endpoints.some(e => e.startsWith('/templates'))) {
+
+      if (endpoints.some((e) => e.startsWith('/templates'))) {
         refreshTasks.push(templateStore.fetchTemplates(true))
         // If templates were synced, schedule might need updating with new IDs
         scheduleNeedsUpdate = true
       }
-      if (endpoints.some(e => e.startsWith('/workouts'))) {
+      if (endpoints.some((e) => e.startsWith('/workouts'))) {
         refreshTasks.push(workoutStore.fetchAllWorkouts(true))
       }
-      if (endpoints.some(e => e.startsWith('/body-metrics'))) {
+      if (endpoints.some((e) => e.startsWith('/body-metrics'))) {
         refreshTasks.push(bodyMetricsStore.fetchRecords(true))
       }
-      if (endpoints.some(e => e === '/schedule')) {
+      if (endpoints.some((e) => e === '/schedule')) {
         refreshTasks.push(templateStore.fetchSchedule(true))
       }
-      
+
       if (refreshTasks.length > 0) {
         await Promise.allSettled(refreshTasks)
         console.log('Soft refresh completed for affected stores:', endpoints)
       }
-      
+
       // Final schedule sync if templates were updated
       if (scheduleNeedsUpdate) {
         console.log('Templates synced - updating schedule with new IDs')
@@ -434,12 +432,12 @@ onMounted(() => {
     }
   }
   document.addEventListener('visibilitychange', handleVisibility)
-  
+
   // Initial check in case the app loads offline
   uiStore.setOfflineStatus(!navigator.onLine)
   // Update sync queue count initially
   updateSyncQueueCount()
-  
+
   // If app starts online, attempt a sync in case there are leftover jobs
   if (navigator.onLine) {
     syncQueue()
@@ -452,14 +450,17 @@ onMounted(() => {
     // Also update queue count periodically
     updateSyncQueueCount()
   }, 15000)
-  
+
   // Re-run sync when user logs in again and app is online
-  watch(() => authStore.token, (newToken) => {
-    if (newToken && navigator.onLine) {
-      syncQueue()
-    }
-  })
-  
+  watch(
+    () => authStore.token,
+    (newToken) => {
+      if (newToken && navigator.onLine) {
+        syncQueue()
+      }
+    },
+  )
+
   // Cleanup extra listener on unmount
   onBeforeUnmount(() => {
     document.removeEventListener('visibilitychange', handleVisibility)
@@ -496,8 +497,8 @@ const navItems = computed(() => [
   { title: '開始訓練', icon: 'mdi-dumbbell', to: '/' },
   { title: '儀表板', icon: 'mdi-view-dashboard', to: '/dashboard' },
   { title: '歷史紀錄', icon: 'mdi-history', to: '/history' },
-  { title: '動作庫', icon: 'mdi-weight-lifter', to: '/exercises', badge: exerciseStore.allExercises.filter(ex => ex.isCustom).length || null },
-  { title: '訓練範本', icon: 'mdi-clipboard-list', to: '/templates', badge: templateStore.templates.filter(t => t.isCustom).length || null },
+  { title: '動作庫', icon: 'mdi-weight-lifter', to: '/exercises', badge: exerciseStore.allExercises.filter((ex) => ex.isCustom).length || null },
+  { title: '訓練範本', icon: 'mdi-clipboard-list', to: '/templates', badge: templateStore.templates.filter((t) => t.isCustom).length || null },
   { title: '訓練排程', icon: 'mdi-calendar-month', to: '/schedule' },
   { title: '同步管理', icon: 'mdi-sync', to: '/sync-queue', badge: syncQueueCount.value || null },
 ])
@@ -508,22 +509,22 @@ const currentRouteTitle = computed(() => {
 })
 
 const breadcrumbs = computed(() => {
-    const pathSegments = route.path.split('/').filter(Boolean);
-    const crumbs = [{ title: '首頁', to: '/', disabled: pathSegments.length === 0 }];
-    let currentPath = '';
-    pathSegments.forEach((segment, index) => {
-        currentPath += `/${segment}`;
-        const navItem = navItems.value.find(item => item.to === currentPath);
-        if (navItem) {
-            crumbs.push({
-                title: navItem.title,
-                to: navItem.to,
-                disabled: index === pathSegments.length - 1
-            });
-        }
-    });
-    return crumbs;
-});
+  const pathSegments = route.path.split('/').filter(Boolean)
+  const crumbs = [{ title: '首頁', to: '/', disabled: pathSegments.length === 0 }]
+  let currentPath = ''
+  pathSegments.forEach((segment, index) => {
+    currentPath += `/${segment}`
+    const navItem = navItems.value.find((item) => item.to === currentPath)
+    if (navItem) {
+      crumbs.push({
+        title: navItem.title,
+        to: navItem.to,
+        disabled: index === pathSegments.length - 1,
+      })
+    }
+  })
+  return crumbs
+})
 
 const handleLogout = () => {
   authStore.logout()

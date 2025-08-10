@@ -7,7 +7,7 @@ export const pwaOptions = {
     description: 'A progressive web app for tracking your workouts.',
     theme_color: '#1976d2',
     background_color: '#ffffff',
-    display: 'standalone',
+    display: 'fullscreen',
     orientation: 'portrait',
     scope: '/',
     start_url: '/',
