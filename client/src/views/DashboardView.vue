@@ -99,11 +99,17 @@ const isLoading = ref(true)
 // 獲取所有訓練數據以進行準確的圖表繪製
 onMounted(async () => {
   try {
+    const needWorkouts = !workoutStore.allWorkouts || workoutStore.allWorkouts.length === 0
+    const needExercises = !exerciseStore.allExercises || exerciseStore.allExercises.length === 0
+    if (!needWorkouts && !needExercises) {
+      isLoading.value = false
+      return
+    }
     isLoading.value = true
-    await Promise.all([
-      workoutStore.fetchAllWorkouts(),
-      exerciseStore.fetchExercises()
-    ])
+    const tasks = []
+    if (needWorkouts) tasks.push(workoutStore.fetchAllWorkouts())
+    if (needExercises) tasks.push(exerciseStore.fetchExercises())
+    await Promise.all(tasks)
   } catch (error) {
     console.error('載入儀表板數據失敗:', error)
   } finally {

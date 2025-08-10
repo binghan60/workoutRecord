@@ -62,7 +62,7 @@ export const useAuthStore = defineStore('auth', () => {
     setAuthData(response.data.data.user, response.data.token)
     toast.success(`註冊成功, 歡迎 ${response.data.data.user.username}!`)
     await router.push('/')
-    window.location.reload()
+    // window.location.reload() // avoid full reload to prevent flicker; router navigation is enough
   }
 
   async function loginAsGuest() {

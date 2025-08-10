@@ -144,13 +144,14 @@
 </template>
 
 <script setup>
-import { ref, computed, watchEffect, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue'
+import { ref, computed, watchEffect, onMounted, onBeforeUnmount, defineAsyncComponent, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useUIStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
 import { useTheme } from 'vuetify'
 import { useResponsiveDesign } from '@/composables/useResponsiveDesign'
 import LoadingOverlay from '@/components/LoadingOverlay.vue'
+import { useToast } from 'vue-toastification'
 
 import { db, initializeDB } from '@/utils/db'
 import apiClient from '@/api'
@@ -167,6 +168,7 @@ import { useWorkoutStore } from '@/stores/workout'
 import { useBodyMetricsStore } from '@/stores/bodyMetrics'
 
 const drawer = ref(null)
+const toast = useToast()
 const route = useRoute()
 const uiStore = useUIStore()
 const authStore = useAuthStore()
@@ -232,8 +234,10 @@ const syncQueue = async () => {
       } catch (error) {
         console.error(`Failed to sync job ${job.id || job.action}:`, error)
         if (error.response && error.response.status === 401) {
-          console.error('Sync failed due to authentication error. Please log in again.')
-          authStore.logout()
+          console.warn('Sync paused due to authentication error. Please log in again to resume synchronization.')
+          toast.error('登入已過期，請重新登入以同步離線資料。')
+          // Do NOT clear the sync queue or logout automatically
+          // Exit the loop gracefully and allow retry after re-authentication
           break
         }
       }
@@ -292,6 +296,12 @@ onMounted(() => {
   if (navigator.onLine) {
     syncQueue()
   }
+  // Re-run sync when user logs in again and app is online
+  watch(() => authStore.token, (newToken) => {
+    if (newToken && navigator.onLine) {
+      syncQueue()
+    }
+  })
 })
 
 onBeforeUnmount(() => {
