@@ -27,7 +27,10 @@ export const useWorkoutStore = defineStore('workout', () => {
   })
 
   async function fetchAllWorkouts(forceRefresh = false) {
-    if (isLoading.value && !forceRefresh) return
+    // Skip if already loading (unless forced) or data already exists (unless forced)
+    if ((isLoading.value && !forceRefresh) || (!forceRefresh && allWorkouts.value.length > 0)) {
+      return
+    }
     
     isLoading.value = true
     try {

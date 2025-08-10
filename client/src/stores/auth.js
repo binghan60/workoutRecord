@@ -98,17 +98,21 @@ export const useAuthStore = defineStore('auth', () => {
       return
     }
 
-    // 初始化資料（包括訪客模式）
+    // 初始化基本資料（僅載入必要的核心資料）
     if (isAuthenticated.value) {
-      console.log('App initializing: fetching all required data...')
+      console.log('App initializing: fetching essential data...')
       const exerciseStore = useExerciseStore()
       const templateStore = useTemplateStore()
-      const workoutStore = useWorkoutStore()
-      const bodyMetricsStore = useBodyMetricsStore()
 
       try {
-        await Promise.all([exerciseStore.fetchExercises(), templateStore.fetchTemplates(), templateStore.fetchSchedule(), workoutStore.fetchAllWorkouts(), bodyMetricsStore.fetchRecords()])
-        console.log('✅ All initial data fetched and ready.')
+        // Only load essential data on app init - exercises, templates and schedule
+        // Workouts and body metrics will be loaded on-demand by their respective views
+        await Promise.all([
+          exerciseStore.fetchExercises(), 
+          templateStore.fetchTemplates(), 
+          templateStore.fetchSchedule()
+        ])
+        console.log('✅ Essential data fetched and ready. Workouts/metrics will load on-demand.')
       } catch (error) {
         console.error('❌ Error fetching initial data:', error)
         // 即使出錯也不阻止應用程式載入

@@ -24,7 +24,11 @@ export const useBodyMetricsStore = defineStore('bodyMetrics', () => {
     return [...records.value].sort((a, b) => new Date(b.date) - new Date(a.date))
   })
 
-  async function fetchRecords() {
+  async function fetchRecords(forceRefresh = false) {
+    // Skip if data already exists unless forced refresh
+    if (!forceRefresh && records.value.length > 0) {
+      return
+    }
     try {
       const data = await dataService.value.fetchAll()
       records.value = data

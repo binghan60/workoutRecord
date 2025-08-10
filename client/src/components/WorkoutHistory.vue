@@ -88,9 +88,12 @@ const workouts = computed(() => workoutStore.paginatedWorkouts)
 const page = ref(workoutStore.currentPage)
 const expandedPanels = ref({})
 
-// Fetch workouts when the component is mounted
+// Fetch workouts when the component is mounted (only if not already loaded)
 onMounted(() => {
-  workoutStore.fetchAllWorkouts(page.value)
+  // History page only needs to ensure data is loaded, not force refresh
+  if (!workoutStore.allWorkouts || workoutStore.allWorkouts.length === 0) {
+    workoutStore.fetchAllWorkouts()
+  }
 })
 
 // Watch for page changes from the pagination component

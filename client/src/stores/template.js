@@ -195,7 +195,10 @@ export const useTemplateStore = defineStore('template', () => {
     const idOnlySchedule = {}
     for (const day in schedule.value) {
       if (Array.isArray(schedule.value[day])) {
-        idOnlySchedule[day] = schedule.value[day].map((template) => template._id || template)
+        // Filter out offline template IDs (they don't exist on server yet)
+        idOnlySchedule[day] = schedule.value[day]
+          .map((template) => template._id || template)
+          .filter((id) => !id.toString().startsWith('offline_'))
       }
     }
 

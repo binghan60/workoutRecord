@@ -337,7 +337,10 @@ const runInitialCheck = async () => {
   const expectedWorkoutName = workoutNameParts.join(' + ')
 
   if (expectedWorkoutName) {
-    await workoutStore.fetchAllWorkouts(true)
+    // Check if we already have workout data, if not fetch it
+    if (!workoutStore.allWorkouts || workoutStore.allWorkouts.length === 0) {
+      await workoutStore.fetchAllWorkouts()
+    }
     const todayStart = new Date()
     todayStart.setHours(0, 0, 0, 0)
 

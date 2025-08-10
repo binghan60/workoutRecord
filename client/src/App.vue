@@ -202,6 +202,50 @@ const isSyncing = ref(false)
 const lastSyncAt = ref(0)
 const syncIntervalId = ref(null)
 
+// Helper function to update schedule references when offline templates get synced
+const updateScheduleReferences = async (offlineId, newId) => {
+  try {
+    console.log(`Updating schedule references: ${offlineId} -> ${newId}`)
+    
+    // Update template store schedule
+    for (const day in templateStore.schedule) {
+      if (Array.isArray(templateStore.schedule[day])) {
+        templateStore.schedule[day] = templateStore.schedule[day].map(template => {
+          if (template._id === offlineId) {
+            return { ...template, _id: newId }
+          }
+          return template
+        })
+      }
+    }
+    
+    // Update local database schedule
+    const scheduleRecord = await db.schedules.get('currentUserSchedule')
+    if (scheduleRecord) {
+      let updated = false
+      for (const day in scheduleRecord) {
+        if (Array.isArray(scheduleRecord[day])) {
+          const originalLength = scheduleRecord[day].length
+          scheduleRecord[day] = scheduleRecord[day].map(template => {
+            if ((template._id || template) === offlineId) {
+              updated = true
+              return typeof template === 'object' ? { ...template, _id: newId } : newId
+            }
+            return template
+          })
+        }
+      }
+      if (updated) {
+        await db.schedules.put(scheduleRecord)
+        console.log('Updated schedule references in local DB')
+        // Schedule will be updated after all templates are synced
+      }
+    }
+  } catch (error) {
+    console.error('Failed to update schedule references:', error)
+  }
+}
+
 const statusLight = computed(() => {
   if (uiStore.isOffline) {
     return { color: 'red', text: '離線' }
@@ -265,6 +309,11 @@ const syncQueue = async () => {
               try {
                 if (job.offlineId) {
                   await db[table].delete(job.offlineId)
+                  
+                  // Special handling for templates: update schedule references
+                  if (table === 'templates' && job.offlineId && saved._id) {
+                    await updateScheduleReferences(job.offlineId, saved._id)
+                  }
                 }
                 await db[table].put(saved)
               } catch (e) {
@@ -321,8 +370,12 @@ const syncQueue = async () => {
     if (processedCount > 0) {
       const endpoints = Array.from(affected)
       const refreshTasks = []
+      let scheduleNeedsUpdate = false
+      
       if (endpoints.some(e => e.startsWith('/templates'))) {
         refreshTasks.push(templateStore.fetchTemplates(true))
+        // If templates were synced, schedule might need updating with new IDs
+        scheduleNeedsUpdate = true
       }
       if (endpoints.some(e => e.startsWith('/workouts'))) {
         refreshTasks.push(workoutStore.fetchAllWorkouts(true))
@@ -333,11 +386,16 @@ const syncQueue = async () => {
       if (endpoints.some(e => e === '/schedule')) {
         refreshTasks.push(templateStore.fetchSchedule(true))
       }
+      
       if (refreshTasks.length > 0) {
         await Promise.allSettled(refreshTasks)
         console.log('Soft refresh completed for affected stores:', endpoints)
-      } else {
-        console.log('Sync finished, but no specific stores to refresh.')
+      }
+      
+      // Final schedule sync if templates were updated
+      if (scheduleNeedsUpdate) {
+        console.log('Templates synced - updating schedule with new IDs')
+        await templateStore.updateScheduleOnBackend()
       }
     } else {
       console.log('Sync finished. No successful changes; skipping refresh.')
