@@ -105,21 +105,27 @@ export const useAuthStore = defineStore('auth', () => {
       return
     }
 
-    if (isAuthenticated.value && !isGuest.value) {
+    // 初始化資料（包括訪客模式）
+    if (isAuthenticated.value) {
       console.log('App initializing: fetching all required data...')
       const exerciseStore = useExerciseStore()
       const templateStore = useTemplateStore()
       const workoutStore = useWorkoutStore()
       const bodyMetricsStore = useBodyMetricsStore()
 
-      await Promise.all([
-        exerciseStore.fetchExercises(),
-        templateStore.fetchTemplates(),
-        templateStore.fetchSchedule(),
-        workoutStore.fetchAllWorkouts(),
-        bodyMetricsStore.fetchRecords()
-      ])
-      console.log('All initial data fetched and ready.')
+      try {
+        await Promise.all([
+          exerciseStore.fetchExercises(),
+          templateStore.fetchTemplates(),
+          templateStore.fetchSchedule(),
+          workoutStore.fetchAllWorkouts(),
+          bodyMetricsStore.fetchRecords()
+        ])
+        console.log('✅ All initial data fetched and ready.')
+      } catch (error) {
+        console.error('❌ Error fetching initial data:', error)
+        // 即使出錯也不阻止應用程式載入
+      }
     }
   }
 

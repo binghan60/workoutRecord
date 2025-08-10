@@ -21,3 +21,25 @@ db.version(2).stores({
 
 // The '&' prefix on _id means it's the primary key and must be unique.
 // Additional fields like 'name' or 'date' are indexed for faster lookups.
+
+// 請求持久化存儲權限
+if ('storage' in navigator && 'persist' in navigator.storage) {
+  navigator.storage.persist().then(persistent => {
+    if (persistent) {
+      console.log('✅ Storage will not be cleared by the browser');
+    } else {
+      console.log('⚠️ Storage may be cleared by the browser under storage pressure');
+    }
+  });
+}
+
+// 監聽 IndexedDB 錯誤
+db.on('error', (error) => {
+  console.error('IndexedDB error:', error);
+});
+
+// 資料庫打開成功的回調
+db.on('ready', () => {
+  console.log('✅ IndexedDB opened successfully');
+  return db.open();
+});

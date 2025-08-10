@@ -7,6 +7,7 @@ import router from './router'
 import Toast, { useToast } from 'vue-toastification'
 import 'vue-toastification/dist/index.css'
 import vuetify from './plugins/vuetify'
+import { registerSW } from 'virtual:pwa-register'
 
 Highcharts.setOptions({
   lang: {
@@ -80,5 +81,21 @@ app.config.globalProperties.$toast = useToast()
 
 app.use(HighchartsVue, { Highcharts })
 app.use(router)
+
+// 註冊 Service Worker
+const updateSW = registerSW({
+  onNeedRefresh() {
+    console.log('App update available')
+  },
+  onOfflineReady() {
+    console.log('App ready to work offline')
+  },
+  onRegistered(r) {
+    console.log('Service Worker registered:', r)
+  },
+  onRegisterError(error) {
+    console.error('Service Worker registration error:', error)
+  },
+})
 
 app.mount('#app')
