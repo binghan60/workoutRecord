@@ -3,7 +3,7 @@
  * 統一處理 API 調用、訪客模式、離線操作和數據快取
  */
 import apiClient from '@/api';
-import { db } from './db'; // Import our IndexedDB service
+import { db, initializeDB } from './db'; // Import our IndexedDB service
 
 export class DataService {
   constructor(options = {}) {
@@ -21,6 +21,9 @@ export class DataService {
     if (this.isGuest) {
       return JSON.parse(localStorage.getItem(this.storageKey)) || [];
     }
+
+    // 確保資料庫已初始化
+    await initializeDB();
 
     if (navigator.onLine) {
       // This try/catch IS necessary because we have fallback logic.
@@ -60,6 +63,9 @@ export class DataService {
       return guestData.find((item) => item._id === id) || null;
     }
 
+    // 確保資料庫已初始化
+    await initializeDB();
+
     if (navigator.onLine) {
       // This try/catch IS necessary for fallback logic.
       try {
@@ -88,6 +94,9 @@ export class DataService {
       localStorage.setItem(this.storageKey, JSON.stringify(guestData));
       return newItem;
     }
+
+    // 確保資料庫已初始化
+    await initializeDB();
 
     if (!navigator.onLine) {
       console.log('Offline: Queuing ADD operation.');
@@ -120,6 +129,9 @@ export class DataService {
       throw new Error('項目未找到');
     }
 
+    // 確保資料庫已初始化
+    await initializeDB();
+
     if (!navigator.onLine) {
       console.log('Offline: Queuing UPDATE operation.');
       const job = { action: 'update', endpoint: `${this.apiEndpoint}/${id}`, payload: data, timestamp: new Date().toISOString() };
@@ -145,6 +157,9 @@ export class DataService {
       localStorage.setItem(this.storageKey, JSON.stringify(filteredData));
       return true;
     }
+
+    // 確保資料庫已初始化
+    await initializeDB();
 
     await db[this.dbTable].delete(id);
 

@@ -22,24 +22,46 @@ db.version(2).stores({
 // The '&' prefix on _id means it's the primary key and must be unique.
 // Additional fields like 'name' or 'date' are indexed for faster lookups.
 
-// 請求持久化存儲權限
-if ('storage' in navigator && 'persist' in navigator.storage) {
-  navigator.storage.persist().then(persistent => {
-    if (persistent) {
-      console.log('✅ Storage will not be cleared by the browser');
-    } else {
-      console.log('⚠️ Storage may be cleared by the browser under storage pressure');
+// 資料庫初始化 Promise
+let dbInitialized = false;
+
+// 安全的資料庫初始化函數
+export const initializeDB = async () => {
+  if (dbInitialized) return db;
+  
+  try {
+    // 打開資料庫
+    await db.open();
+    console.log('✅ IndexedDB opened successfully');
+    
+    // 請求持久化存儲權限
+    if (typeof navigator !== 'undefined' && 'storage' in navigator && 'persist' in navigator.storage) {
+      try {
+        const persistent = await navigator.storage.persist();
+        if (persistent) {
+          console.log('✅ Storage will not be cleared by the browser');
+        } else {
+          console.log('⚠️ Storage may be cleared by the browser under storage pressure');
+        }
+      } catch (storageError) {
+        console.warn('⚠️ Could not request persistent storage:', storageError);
+      }
     }
-  });
+    
+    dbInitialized = true;
+    return db;
+  } catch (error) {
+    console.error('❌ Failed to initialize IndexedDB:', error);
+    throw error;
+  }
+};
+
+// 僅在瀏覽器環境中初始化
+if (typeof window !== 'undefined') {
+  // 延遲初始化，避免阻塞應用啟動
+  setTimeout(() => {
+    initializeDB().catch(error => {
+      console.error('Database initialization failed:', error);
+    });
+  }, 100);
 }
-
-// 監聽 IndexedDB 錯誤
-db.on('error', (error) => {
-  console.error('IndexedDB error:', error);
-});
-
-// 資料庫打開成功的回調
-db.on('ready', () => {
-  console.log('✅ IndexedDB opened successfully');
-  return db.open();
-});

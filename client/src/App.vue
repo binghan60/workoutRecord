@@ -156,7 +156,7 @@ import { useTheme } from 'vuetify'
 import { useResponsiveDesign } from '@/composables/useResponsiveDesign'
 import LoadingOverlay from '@/components/LoadingOverlay.vue'
 
-import { db } from '@/utils/db'
+import { db, initializeDB } from '@/utils/db'
 import apiClient from '@/api'
 
 // Lazy load modals
@@ -185,46 +185,55 @@ const syncQueue = async () => {
     return
   }
 
-  const jobs = await db.sync_queue.toArray()
-  if (jobs.length === 0) {
-    return
-  }
-  
-  isSyncing.value = true
-  uiStore.setSyncing(true)
-  console.log(`Sync started: ${jobs.length} items to process.`)
+  try {
+    // 確保資料庫已初始化
+    await initializeDB()
+    
+    const jobs = await db.sync_queue.toArray()
+    if (jobs.length === 0) {
+      return
+    }
+    
+    isSyncing.value = true
+    uiStore.setSyncing(true)
+    console.log(`Sync started: ${jobs.length} items to process.`)
 
-  for (const job of jobs) {
-    try {
-      switch (job.action) {
-        case 'add':
-          await apiClient.post(job.endpoint, job.payload)
+    for (const job of jobs) {
+      try {
+        switch (job.action) {
+          case 'add':
+            await apiClient.post(job.endpoint, job.payload)
+            break
+          case 'update':
+            await apiClient.put(job.endpoint, job.payload)
+            break
+          case 'delete':
+            await apiClient.delete(job.endpoint)
+            break
+        }
+        await db.sync_queue.delete(job.id)
+        console.log(`Job ${job.id || job.action} synced successfully.`)
+      } catch (error) {
+        console.error(`Failed to sync job ${job.id || job.action}:`, error)
+        if (error.response && error.response.status === 401) {
+          console.error('Sync failed due to authentication error. Please log in again.')
+          authStore.logout()
           break
-        case 'update':
-          await apiClient.put(job.endpoint, job.payload)
-          break
-        case 'delete':
-          await apiClient.delete(job.endpoint)
-          break
-      }
-      await db.sync_queue.delete(job.id)
-      console.log(`Job ${job.id || job.action} synced successfully.`)
-    } catch (error) {
-      console.error(`Failed to sync job ${job.id || job.action}:`, error)
-      if (error.response && error.response.status === 401) {
-        console.error('Sync failed due to authentication error. Please log in again.')
-        authStore.logout()
-        break
+        }
       }
     }
-  }
 
-  isSyncing.value = false
-  uiStore.setSyncing(false)
-  
-  if (jobs.length > 0) {
-    console.log('Sync finished. Reloading for data consistency.')
-    window.location.reload()
+    isSyncing.value = false
+    uiStore.setSyncing(false)
+    
+    if (jobs.length > 0) {
+      console.log('Sync finished. Reloading for data consistency.')
+      window.location.reload()
+    }
+  } catch (error) {
+    console.error('Failed to initialize database for sync:', error)
+    isSyncing.value = false
+    uiStore.setSyncing(false)
   }
 }
 
