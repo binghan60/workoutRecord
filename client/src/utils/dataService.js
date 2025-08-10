@@ -214,13 +214,29 @@ export class DataService {
       console.log('🔌 Deleting offline-created item, removing from local DB only');
       await db[this.dbTable].delete(id);
       // 也需要從同步佇列中移除對應的新增任務
-      // 使用更安全的查詢方式，避免索引問題
+      // 針對離線建立的課表，需要找到對應的 ADD 任務並移除
       try {
-        const jobs = await db.sync_queue.where('action').equals('add').toArray();
+        console.log('🔍 Looking for sync queue jobs to clean up for offline item:', id);
+        
+        // 使用 endpoint 索引查詢，這樣更安全
+        const jobs = await db.sync_queue.where('endpoint').equals(this.apiEndpoint).toArray();
+        console.log(`📋 Found ${jobs.length} jobs for endpoint ${this.apiEndpoint}`);
+        
         for (const job of jobs) {
-          if (job.payload && job.payload._id === id) {
-            await db.sync_queue.delete(job.id);
-            console.log('🗑️ Removed corresponding add job from sync queue');
+          // 檢查是否是新增任務，且 payload 包含相同的資料
+          if (job.action === 'add' && job.payload) {
+            // 對於離線建立的項目，payload 中不會有 _id，需要比較其他欄位
+            // 比較課表名稱和時間戳來判斷是否為同一個項目
+            const payloadTime = new Date(job.timestamp);
+            const itemTime = new Date(id.replace('offline_', ''));
+            const timeDiff = Math.abs(payloadTime.getTime() - itemTime.getTime());
+            
+            // 如果時間差在 1 分鐘內，且是同類型的項目，就認為是同一個
+            if (timeDiff < 60000 && job.payload.name) {
+              await db.sync_queue.delete(job.id);
+              console.log('🗑️ Removed corresponding add job from sync queue:', job.id);
+              break; // 找到一個就夠了
+            }
           }
         }
       } catch (error) {
