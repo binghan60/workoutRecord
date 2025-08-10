@@ -11,7 +11,7 @@ db.version(1).stores({
 
 // Version 2: Add tables for caching API data
 db.version(2).stores({
-  sync_queue: '++id, action', // Keep the sync_queue
+  sync_queue: '++id, action, endpoint', // Keep the sync_queue, add endpoint index
   exercises: '&_id, name',    // Cache for exercises, _id is the primary key
   templates: '&_id, name',    // Cache for templates
   schedules: '&_id, date',    // Cache for weekly schedules

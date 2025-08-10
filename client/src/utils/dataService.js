@@ -214,12 +214,18 @@ export class DataService {
       console.log('🔌 Deleting offline-created item, removing from local DB only');
       await db[this.dbTable].delete(id);
       // 也需要從同步佇列中移除對應的新增任務
-      const jobs = await db.sync_queue.where('payload').anyOf([id]).toArray();
-      for (const job of jobs) {
-        if (job.action === 'add' && job.payload && job.payload._id === id) {
-          await db.sync_queue.delete(job.id);
-          console.log('🗑️ Removed corresponding add job from sync queue');
+      // 使用更安全的查詢方式，避免索引問題
+      try {
+        const jobs = await db.sync_queue.where('action').equals('add').toArray();
+        for (const job of jobs) {
+          if (job.payload && job.payload._id === id) {
+            await db.sync_queue.delete(job.id);
+            console.log('🗑️ Removed corresponding add job from sync queue');
+          }
         }
+      } catch (error) {
+        console.warn('⚠️ Could not clean sync queue:', error);
+        // 不拋出錯誤，因為這不是關鍵操作
       }
       return true;
     }
