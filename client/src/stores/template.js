@@ -3,7 +3,7 @@ import { ref, computed } from 'vue'
 import { useToast } from 'vue-toastification'
 import { useAuthStore } from './auth'
 import { createDataService } from '@/utils/dataService'
-import { db } from '@/utils/db'
+import { db, initializeDB } from '@/utils/db'
 import apiClient from '@/api'
 
 const toast = useToast()
@@ -29,8 +29,12 @@ export const useTemplateStore = defineStore('template', () => {
     try {
       const data = await templateService.value.fetchAll()
       templates.value = data
+      console.log(`✅ Fetched ${data.length} templates`)
     } catch (error) {
+      console.error('❌ Failed to fetch templates:', error)
       toast.error('無法載入課表範本')
+      // 確保即使出錯也有空陣列
+      templates.value = []
     }
   }
 
@@ -39,8 +43,12 @@ export const useTemplateStore = defineStore('template', () => {
       const newTemplate = await templateService.value.add(templateData)
       templates.value.unshift(newTemplate)
       toast.success(`課表 "${templateData.name}" 已建立！`)
+      console.log('✅ Template created successfully:', newTemplate)
+      return newTemplate
     } catch (error) {
+      console.error('❌ Failed to create template:', error)
       toast.error(error.response?.data?.message || '建立課表失敗')
+      throw error
     }
   }
 
@@ -89,14 +97,28 @@ export const useTemplateStore = defineStore('template', () => {
         const guestScheduleIds = JSON.parse(localStorage.getItem('guest_schedule')) || {}
         const guestTemplates = JSON.parse(localStorage.getItem('guest_templates')) || []
         const populatedSchedule = {}
+        
+        console.log('📅 Guest schedule IDs:', guestScheduleIds)
+        console.log('📋 Guest templates:', guestTemplates.length, 'items')
+        
         for (const day in guestScheduleIds) {
             populatedSchedule[day] = guestScheduleIds[day]
-            .map((id) => guestTemplates.find((t) => t._id === id))
+            .map((id) => {
+                const template = guestTemplates.find((t) => t._id === id)
+                if (!template) {
+                    console.warn(`⚠️ Template with ID ${id} not found for ${day}`)
+                }
+                return template
+            })
             .filter(Boolean)
         }
         schedule.value = populatedSchedule
+        console.log('✅ Guest schedule populated:', populatedSchedule)
         return
     }
+
+    // 確保資料庫已初始化
+    await initializeDB()
 
     if (navigator.onLine) {
         try {
@@ -105,14 +127,24 @@ export const useTemplateStore = defineStore('template', () => {
             // Use .put() to save the single schedule object with a fixed key
             await db.schedules.put({ _id: SCHEDULE_DB_KEY, ...scheduleData })
             schedule.value = scheduleData
+            console.log('✅ Schedule fetched from server and cached')
         } catch (error) {
-            toast.error('無法從伺服器載入訓練排程，嘗試從本地讀取。')
+            console.warn('Failed to fetch schedule from server, falling back to local data')
             const localSchedule = await db.schedules.get(SCHEDULE_DB_KEY)
-            schedule.value = localSchedule || {}
+            schedule.value = localSchedule ? { ...localSchedule } : {}
+            // 移除 _id 屬性，因為這只是資料庫的鍵
+            if (schedule.value._id) {
+                delete schedule.value._id
+            }
         }
     } else {
+        console.log('Offline: Reading schedule from IndexedDB')
         const localSchedule = await db.schedules.get(SCHEDULE_DB_KEY)
-        schedule.value = localSchedule || {}
+        schedule.value = localSchedule ? { ...localSchedule } : {}
+        // 移除 _id 屬性，因為這只是資料庫的鍵
+        if (schedule.value._id) {
+            delete schedule.value._id
+        }
     }
   }
 
@@ -126,8 +158,12 @@ export const useTemplateStore = defineStore('template', () => {
 
     if (authStore.isGuest) {
       localStorage.setItem('guest_schedule', JSON.stringify(idOnlySchedule))
+      console.log('✅ Guest schedule saved:', idOnlySchedule)
       return
     }
+
+    // 確保資料庫已初始化
+    await initializeDB()
 
     const scheduleToSave = { _id: SCHEDULE_DB_KEY, ...schedule.value }
     await db.schedules.put(scheduleToSave) // Optimistic update to local DB
@@ -150,6 +186,7 @@ export const useTemplateStore = defineStore('template', () => {
       await db.schedules.put({ _id: SCHEDULE_DB_KEY, ...updatedScheduleData })
       schedule.value = updatedScheduleData
     } catch (error) {
+      console.error('Failed to update schedule:', error)
       toast.error('更新排程失敗')
     }
   }

@@ -19,7 +19,9 @@ export class DataService {
    */
   async fetchAll() {
     if (this.isGuest) {
-      return JSON.parse(localStorage.getItem(this.storageKey)) || [];
+      const guestData = JSON.parse(localStorage.getItem(this.storageKey)) || [];
+      console.log(`✅ Guest data loaded from ${this.storageKey}:`, guestData.length, 'items');
+      return guestData;
     }
 
     // 確保資料庫已初始化
@@ -88,10 +90,18 @@ export class DataService {
    */
   async add(data) {
     if (this.isGuest) {
-      const newItem = { ...data, _id: `guest_${new Date().getTime()}`, user: this.userId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      const newItem = { 
+        ...data, 
+        _id: `guest_${new Date().getTime()}`, 
+        user: this.userId || 'guest', 
+        createdAt: new Date().toISOString(), 
+        updatedAt: new Date().toISOString(),
+        isCustom: true // 確保訪客創建的項目標記為自定義
+      };
       const guestData = JSON.parse(localStorage.getItem(this.storageKey)) || [];
       guestData.unshift(newItem);
       localStorage.setItem(this.storageKey, JSON.stringify(guestData));
+      console.log(`✅ Guest item added to ${this.storageKey}:`, newItem);
       return newItem;
     }
 
