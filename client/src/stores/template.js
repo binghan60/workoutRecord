@@ -208,18 +208,23 @@ export const useTemplateStore = defineStore('template', () => {
     // 確保資料庫已初始化
     await initializeDB()
 
-    const scheduleToSave = { _id: SCHEDULE_DB_KEY, ...schedule.value }
+    // Deep-clone to ensure we store plain serializable objects (avoid Vue proxies)
+    const cleanSchedule = JSON.parse(JSON.stringify(schedule.value))
+    const scheduleToSave = { _id: SCHEDULE_DB_KEY, ...cleanSchedule }
     await db.schedules.put(scheduleToSave) // Optimistic update to local DB
 
     if (!navigator.onLine) {
         console.log("Offline: Queuing schedule update.")
-        await db.sync_queue.put({
-            id: 'singleton_schedule_update',
-            action: 'update',
-            endpoint: '/schedule',
-            payload: idOnlySchedule,
-            timestamp: new Date().toISOString()
-        })
+        try {
+          await db.sync_queue.add({
+              action: 'update',
+              endpoint: '/schedule',
+              payload: idOnlySchedule,
+              timestamp: new Date().toISOString()
+          })
+        } catch (queueError) {
+          console.warn('Failed to queue schedule update for sync:', queueError)
+        }
         return 
     }
 
@@ -237,7 +242,7 @@ export const useTemplateStore = defineStore('template', () => {
 
   // --- END DEDICATED SCHEDULE LOGIC ---
 
-  function addTemplateToSchedule(day, templateId) {
+  async function addTemplateToSchedule(day, templateId) {
     if (!day || !templateId) return
     const template = getTemplateById.value(templateId)
     if (!template) return
@@ -254,18 +259,34 @@ export const useTemplateStore = defineStore('template', () => {
 
     schedule.value[day].push(template)
     toast.success(`已將 "${template.name}" 加入 ${day} 的排程`)
+    // Optimistic local save to ensure offline refresh persists immediately
+    try {
+      await initializeDB()
+      const cleanSchedule = JSON.parse(JSON.stringify(schedule.value))
+      await db.schedules.put({ _id: SCHEDULE_DB_KEY, ...cleanSchedule })
+    } catch (e) {
+      console.warn('Failed to persist schedule locally after add:', e)
+    }
     updateScheduleOnBackend()
   }
 
-  function removeTemplateFromSchedule(day, index) {
+  async function removeTemplateFromSchedule(day, index) {
     if (!schedule.value[day] || schedule.value[day][index] === undefined) return
     const template = schedule.value[day][index]
     schedule.value[day].splice(index, 1)
     toast.info(`已從 ${day} 的排程中移除 "${template.name}"`)
+    // Persist immediately for offline refresh
+    try {
+      await initializeDB()
+      const cleanSchedule = JSON.parse(JSON.stringify(schedule.value))
+      await db.schedules.put({ _id: SCHEDULE_DB_KEY, ...cleanSchedule })
+    } catch (e) {
+      console.warn('Failed to persist schedule locally after remove:', e)
+    }
     updateScheduleOnBackend()
   }
 
-  function updateScheduleOrder(day, oldIndex, newIndex) {
+  async function updateScheduleOrder(day, oldIndex, newIndex) {
     if (!schedule.value[day]) return
     const [movedItem] = schedule.value[day].splice(oldIndex, 1)
     schedule.value[day].splice(newIndex, 0, movedItem)

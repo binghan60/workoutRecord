@@ -86,10 +86,14 @@ const openAddModal = (day) => {
   isModalOpen.value = true
 }
 
-const selectTemplate = (templateId) => {
+const selectTemplate = async (templateId) => {
   const englishDay = dayMap[selectedDay.value]
   if (englishDay && templateId) {
-    templateStore.addTemplateToSchedule(englishDay, templateId)
+    try {
+      await templateStore.addTemplateToSchedule(englishDay, templateId)
+    } finally {
+      // ensure UI closes even if errors happen
+    }
   }
   isModalOpen.value = false
   selectedDay.value = null
