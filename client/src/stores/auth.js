@@ -39,15 +39,9 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('token')
     localStorage.removeItem('isGuest')
     delete apiClient.defaults.headers.common['Authorization']
-    
+
     db.sync_queue.clear()
-    Promise.all([
-      db.exercises.clear(),
-      db.templates.clear(),
-      db.schedules.clear(),
-      db.workouts.clear(),
-      db.bodyMetrics.clear()
-    ]).then(() => console.log('All local data caches and sync queue cleared on logout.'))
+    Promise.all([db.exercises.clear(), db.templates.clear(), db.schedules.clear(), db.workouts.clear(), db.bodyMetrics.clear()]).then(() => console.log('All local data caches and sync queue cleared on logout.'))
   }
 
   async function login(credentials) {
@@ -61,7 +55,6 @@ export const useAuthStore = defineStore('auth', () => {
     }
     toast.success(`歡迎回來, ${response.data.data.user.username}!`)
     await router.push('/')
-    window.location.reload()
   }
 
   async function register(userInfo) {
@@ -114,13 +107,7 @@ export const useAuthStore = defineStore('auth', () => {
       const bodyMetricsStore = useBodyMetricsStore()
 
       try {
-        await Promise.all([
-          exerciseStore.fetchExercises(),
-          templateStore.fetchTemplates(),
-          templateStore.fetchSchedule(),
-          workoutStore.fetchAllWorkouts(),
-          bodyMetricsStore.fetchRecords()
-        ])
+        await Promise.all([exerciseStore.fetchExercises(), templateStore.fetchTemplates(), templateStore.fetchSchedule(), workoutStore.fetchAllWorkouts(), bodyMetricsStore.fetchRecords()])
         console.log('✅ All initial data fetched and ready.')
       } catch (error) {
         console.error('❌ Error fetching initial data:', error)

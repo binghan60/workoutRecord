@@ -242,7 +242,6 @@ const syncQueue = async () => {
       if (now - last > 10000) {
         sessionStorage.setItem('lastSyncAt', String(now))
         console.log('Sync finished with changes. Reloading for data consistency.')
-        window.location.reload()
       } else {
         console.log('Sync finished with changes, but skipping reload to avoid rapid loops.')
       }
