@@ -163,6 +163,8 @@ const BodyMetricsModal = defineAsyncComponent(() => import('@/components/BodyMet
 // Import data stores for computed properties like badges
 import { useExerciseStore } from '@/stores/exercise'
 import { useTemplateStore } from '@/stores/template'
+import { useWorkoutStore } from '@/stores/workout'
+import { useBodyMetricsStore } from '@/stores/bodyMetrics'
 
 const drawer = ref(null)
 const route = useRoute()
@@ -171,6 +173,8 @@ const authStore = useAuthStore()
 const theme = useTheme()
 const exerciseStore = useExerciseStore()
 const templateStore = useTemplateStore()
+const workoutStore = useWorkoutStore()
+const bodyMetricsStore = useBodyMetricsStore()
 
 const { mobile, responsiveSizes, drawerBehavior, typographyScale, density } = useResponsiveDesign()
 
@@ -205,7 +209,9 @@ const syncQueue = async () => {
     uiStore.setSyncing(true)
     console.log(`Sync started: ${jobs.length} items to process.`)
 
+    // Track affected endpoints to refresh only necessary stores
     let processedCount = 0
+    const affected = new Set()
     for (const job of jobs) {
       try {
         switch (job.action) {
@@ -221,6 +227,7 @@ const syncQueue = async () => {
         }
         await db.sync_queue.delete(job.id)
         processedCount++
+        affected.add(job.endpoint.split('?')[0])
         console.log(`Job ${job.id || job.action} synced successfully.`)
       } catch (error) {
         console.error(`Failed to sync job ${job.id || job.action}:`, error)
@@ -235,18 +242,30 @@ const syncQueue = async () => {
     isSyncing.value = false
     uiStore.setSyncing(false)
 
-    const remaining = await db.sync_queue.count()
-    if (processedCount > 0 && remaining === 0) {
-      const now = Date.now()
-      const last = Number(sessionStorage.getItem('lastSyncAt') || '0')
-      if (now - last > 10000) {
-        sessionStorage.setItem('lastSyncAt', String(now))
-        console.log('Sync finished with changes. Reloading for data consistency.')
+    // Soft refresh: re-fetch affected stores instead of reloading the page
+    if (processedCount > 0) {
+      const endpoints = Array.from(affected)
+      const refreshTasks = []
+      if (endpoints.some(e => e.startsWith('/templates'))) {
+        refreshTasks.push(templateStore.fetchTemplates(true))
+      }
+      if (endpoints.some(e => e.startsWith('/workouts'))) {
+        refreshTasks.push(workoutStore.fetchAllWorkouts(true))
+      }
+      if (endpoints.some(e => e.startsWith('/body-metrics'))) {
+        refreshTasks.push(bodyMetricsStore.fetchRecords(true))
+      }
+      if (endpoints.some(e => e === '/schedule')) {
+        refreshTasks.push(templateStore.fetchSchedule(true))
+      }
+      if (refreshTasks.length > 0) {
+        await Promise.allSettled(refreshTasks)
+        console.log('Soft refresh completed for affected stores:', endpoints)
       } else {
-        console.log('Sync finished with changes, but skipping reload to avoid rapid loops.')
+        console.log('Sync finished, but no specific stores to refresh.')
       }
     } else {
-      console.log('Sync finished. No successful changes or jobs remain; skipping reload.')
+      console.log('Sync finished. No successful changes; skipping refresh.')
     }
   } catch (error) {
     console.error('Failed to initialize database for sync:', error)

@@ -228,16 +228,27 @@ export const useTemplateStore = defineStore('template', () => {
         return 
     }
 
-    try {
-      const response = await apiClient.put('/schedule', idOnlySchedule)
-      const updatedScheduleData = response.data.data || response.data
-      const { _id: remoteId, ...scheduleFields } = updatedScheduleData
-      await db.schedules.put({ _id: SCHEDULE_DB_KEY, ...scheduleFields, remoteId })
-      schedule.value = scheduleFields
-    } catch (error) {
-      console.error('Failed to update schedule:', error)
-      toast.error('更新排程失敗')
-    }
+    // Online: background sync for better UX
+    apiClient.put('/schedule', idOnlySchedule, { headers: { 'X-Background-Sync': 'true' } })
+      .then(async (response) => {
+        const updatedScheduleData = response.data.data || response.data
+        const { _id: remoteId, ...scheduleFields } = updatedScheduleData
+        await db.schedules.put({ _id: SCHEDULE_DB_KEY, ...scheduleFields, remoteId })
+        // 若需要，可選擇同步 store：schedule.value = scheduleFields
+      })
+      .catch(async (error) => {
+        console.error('Failed to update schedule online, queuing for retry:', error)
+        try {
+          await db.sync_queue.add({
+            action: 'update',
+            endpoint: '/schedule',
+            payload: idOnlySchedule,
+            timestamp: new Date().toISOString()
+          })
+        } catch (e) {
+          console.error('Failed to enqueue schedule update:', e)
+        }
+      })
   }
 
   // --- END DEDICATED SCHEDULE LOGIC ---

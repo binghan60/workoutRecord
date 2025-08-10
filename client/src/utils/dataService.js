@@ -112,6 +112,7 @@ export class DataService {
     await initializeDB();
 
     if (!navigator.onLine) {
+      // Always perform optimistic UI update and queue background sync
       console.log('🔌 Offline: Queuing ADD operation for', this.dbTable);
       try {
         // 深度克隆數據以確保 IndexedDB 兼容性
@@ -153,11 +154,36 @@ export class DataService {
       }
     }
 
-    // No unnecessary try/catch here. If it fails, the error propagates to the caller (the store).
-    const response = await apiClient.post(this.apiEndpoint, data);
-    const savedData = response.data.data || response.data;
-    await db[this.dbTable].put(savedData);
-    return savedData;
+    // Online: do optimistic UI update first, then background sync request
+    // Create a provisional local item (without offline_ prefix) to deliver snappy UX
+    const cleanData = JSON.parse(JSON.stringify(data));
+    const optimisticItem = {
+      ...cleanData,
+      _id: cleanData._id || `temp_${Date.now()}`,
+      user: this.userId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      isOptimistic: true,
+      isCustom: true
+    }
+    await db[this.dbTable].put(optimisticItem)
+
+    // Fire-and-forget background request
+    apiClient.post(this.apiEndpoint, data, { headers: { 'X-Background-Sync': 'true' } })
+      .then(async (response) => {
+        const savedData = response.data.data || response.data
+        await db[this.dbTable].put(savedData)
+        // Optionally clean up temp item if ids differ
+        if (optimisticItem._id !== savedData._id) {
+          await db[this.dbTable].delete(optimisticItem._id)
+        }
+      })
+      .catch(async (error) => {
+        console.error('Background add failed, queuing for retry:', error)
+        await db.sync_queue.add({ action: 'add', endpoint: this.apiEndpoint, payload: cleanData, timestamp: new Date().toISOString() })
+      })
+
+    return optimisticItem;
   }
 
   /**
@@ -179,6 +205,7 @@ export class DataService {
     await initializeDB();
 
     if (!navigator.onLine) {
+      // Optimistic local update + queue background sync
       console.log('Offline: Queuing UPDATE operation.');
       const job = { action: 'update', endpoint: `${this.apiEndpoint}/${id}`, payload: data, timestamp: new Date().toISOString() };
       await db.sync_queue.add(job);
@@ -186,11 +213,19 @@ export class DataService {
       return { ...data, _id: id, isOffline: true };
     }
 
-    // No unnecessary try/catch here.
-    const response = await apiClient.put(`${this.apiEndpoint}/${id}`, data);
-    const savedData = response.data.data || response.data;
-    await db[this.dbTable].put(savedData);
-    return savedData;
+    // Online: optimistic local update + background request
+    await db[this.dbTable].update(id, data)
+    apiClient.put(`${this.apiEndpoint}/${id}`, data, { headers: { 'X-Background-Sync': 'true' } })
+      .then(async (response) => {
+        const savedData = response.data.data || response.data
+        await db[this.dbTable].put(savedData)
+      })
+      .catch(async (error) => {
+        console.error('Background update failed, queuing for retry:', error)
+        const job = { action: 'update', endpoint: `${this.apiEndpoint}/${id}`, payload: data, timestamp: new Date().toISOString() };
+        await db.sync_queue.add(job)
+      })
+    return { ...data, _id: id, isOptimistic: true }
   }
 
   /**
@@ -268,7 +303,7 @@ export class DataService {
       return true;
     }
 
-    // 從本地資料庫刪除
+    // 從本地資料庫刪除（樂觀 UI）
     await db[this.dbTable].delete(id);
     console.log(`✅ Item ${id} deleted from local ${this.dbTable}`);
 
@@ -280,17 +315,15 @@ export class DataService {
       return true;
     }
 
-    // 線上模式：直接從伺服器刪除
-    try {
-      await apiClient.delete(`${this.apiEndpoint}/${id}`);
-      console.log(`✅ Item ${id} deleted from server`);
-      return true;
-    } catch (error) {
-      console.error(`❌ Failed to delete item ${id} from server:`, error);
-      // 如果伺服器刪除失敗，重新加入到本地（回滾）
-      // 這裡可以選擇是否要回滾，或者加入同步佇列等下次重試
-      throw error;
-    }
+    // 線上模式：背景同步刪除
+    apiClient.delete(`${this.apiEndpoint}/${id}`, { headers: { 'X-Background-Sync': 'true' } })
+      .then(() => console.log(`✅ Item ${id} deleted from server`))
+      .catch(async (error) => {
+        console.error(`❌ Background delete failed for item ${id}, queuing:`, error)
+        const job = { action: 'delete', endpoint: `${this.apiEndpoint}/${id}`, timestamp: new Date().toISOString() };
+        await db.sync_queue.add(job)
+      })
+    return true;
   }
 }
 
