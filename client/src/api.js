@@ -10,9 +10,9 @@ const apiClient = axios.create({
 // Add a request interceptor to show loading spinner
 apiClient.interceptors.request.use(
   (config) => {
-    // Do not show loading for auth check or background sync to avoid flashing
-    const isBackground = config.headers && config.headers['X-Background-Sync'] === 'true'
-    if (!config.url.endsWith('/users/me') && !isBackground) {
+    // Only show spinner if explicitly requested; all data operations run in background by default
+    const showSpinner = config.headers && config.headers['X-Show-Spinner'] === 'true'
+    if (showSpinner) {
       const uiStore = useUIStore()
       uiStore.isLoading = true
     }
@@ -33,15 +33,15 @@ apiClient.interceptors.request.use(
 // Add a response interceptor to hide loading spinner
 apiClient.interceptors.response.use(
   (response) => {
-    const isBackground = response.config && response.config.headers && response.config.headers['X-Background-Sync'] === 'true'
+    const showSpinner = response.config && response.config.headers && response.config.headers['X-Show-Spinner'] === 'true'
     const uiStore = useUIStore()
-    if (!isBackground) uiStore.isLoading = false
+    if (showSpinner) uiStore.isLoading = false
     return response
   },
   (error) => {
-    const isBackground = error.config && error.config.headers && error.config.headers['X-Background-Sync'] === 'true'
+    const showSpinner = error.config && error.config.headers && error.config.headers['X-Show-Spinner'] === 'true'
     const uiStore = useUIStore()
-    if (!isBackground) uiStore.isLoading = false
+    if (showSpinner) uiStore.isLoading = false
     // You can add global error handling here, e.g., show a toast notification
     console.error('API Error:', error.response?.data?.message || error.message)
 
