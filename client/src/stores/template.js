@@ -40,6 +40,10 @@ export const useTemplateStore = defineStore('template', () => {
 
   async function addTemplate(templateData) {
     try {
+      console.log('📋 Creating template with data:', templateData)
+      console.log('🌐 Network status:', navigator.onLine ? 'Online' : 'Offline')
+      console.log('👤 Auth mode:', authStore.isGuest ? 'Guest' : 'Registered User')
+      
       const newTemplate = await templateService.value.add(templateData)
       templates.value.unshift(newTemplate)
       toast.success(`課表 "${templateData.name}" 已建立！`)
@@ -47,7 +51,12 @@ export const useTemplateStore = defineStore('template', () => {
       return newTemplate
     } catch (error) {
       console.error('❌ Failed to create template:', error)
-      toast.error(error.response?.data?.message || '建立課表失敗')
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        stack: error.stack
+      })
+      // 不在這裡顯示 toast，讓調用者處理
       throw error
     }
   }
@@ -68,15 +77,23 @@ export const useTemplateStore = defineStore('template', () => {
 
   async function deleteTemplate(templateId) {
     try {
+      console.log('🗑️ Deleting template:', templateId)
+      console.log('🌐 Network status:', navigator.onLine ? 'Online' : 'Offline')
+      
       const deletedTemplateName = templates.value.find(t => t._id === templateId)?.name || '範本'
       await templateService.value.delete(templateId)
       templates.value = templates.value.filter((t) => t._id !== templateId)
       
       let scheduleNeedsUpdate = false
       for (const day in schedule.value) {
-        const initialLength = schedule.value[day]?.length || 0
-        schedule.value[day] = schedule.value[day]?.filter(t => t._id !== templateId)
-        if(schedule.value[day]?.length < initialLength) {
+        // 確保 schedule.value[day] 是陣列
+        if (!Array.isArray(schedule.value[day])) {
+          continue
+        }
+        
+        const initialLength = schedule.value[day].length
+        schedule.value[day] = schedule.value[day].filter(t => t._id !== templateId)
+        if(schedule.value[day].length < initialLength) {
           scheduleNeedsUpdate = true
         }
       }
@@ -85,8 +102,15 @@ export const useTemplateStore = defineStore('template', () => {
       }
 
       toast.success(`課表 "${deletedTemplateName}" 已刪除！`)
+      console.log('✅ Template deleted successfully:', templateId)
     } catch (error) {
-      toast.error(error.response?.data?.message || '刪除課表失敗')
+      console.error('❌ Failed to delete template:', error)
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        stack: error.stack
+      })
+      toast.error(error.response?.data?.message || error.message || '刪除課表失敗')
     }
   }
 

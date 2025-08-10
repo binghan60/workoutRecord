@@ -207,6 +207,7 @@ const handleAddTemplate = async () => {
     formRef.value.reset()
     formRef.value.resetValidation()
   } catch (error) {
+    console.error('❌ Template creation failed in component:', error)
     toast.error('課表建立失敗，請稍後再試')
   }
 }
