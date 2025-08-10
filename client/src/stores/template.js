@@ -117,6 +117,32 @@ export const useTemplateStore = defineStore('template', () => {
   // --- DEDICATED SCHEDULE LOGIC ---
 
   async function fetchSchedule() {
+     // Helper: read schedule from IndexedDB using fixed key, with migration fallback
+     const readScheduleFromIDB = async () => {
+       // Ensure DB ready
+       await initializeDB()
+       let record = await db.schedules.get(SCHEDULE_DB_KEY)
+       if (!record) {
+         // Migration path: find any existing schedule record saved with a different key (e.g., server _id)
+         const all = await db.schedules.toArray()
+         if (all && all.length > 0) {
+           // Prefer the most recently updated/created one if metadata exists
+           const pick = all.reduce((best, cur) => {
+             const bestTs = new Date(best.updatedAt || best.createdAt || 0).getTime()
+             const curTs = new Date(cur.updatedAt || cur.createdAt || 0).getTime()
+             return curTs > bestTs ? cur : best
+           }, all[0])
+           // Normalize into fixed-key record, preserve remote id
+           const { _id: legacyId, remoteId: legacyRemote, ...fields } = pick
+           await db.schedules.put({ _id: SCHEDULE_DB_KEY, ...fields, remoteId: legacyRemote || legacyId })
+           record = await db.schedules.get(SCHEDULE_DB_KEY)
+         }
+       }
+       if (!record) return {}
+       // Strip db-only properties when hydrating into store
+       const { _id, remoteId, ...scheduleFields } = record
+       return scheduleFields
+     }
     if (authStore.isGuest) {
         const guestScheduleIds = JSON.parse(localStorage.getItem('guest_schedule')) || {}
         const guestTemplates = JSON.parse(localStorage.getItem('guest_templates')) || []
@@ -148,27 +174,20 @@ export const useTemplateStore = defineStore('template', () => {
         try {
             const response = await apiClient.get('/schedule')
             const scheduleData = response.data.data || response.data || {}
-            // Use .put() to save the single schedule object with a fixed key
-            await db.schedules.put({ _id: SCHEDULE_DB_KEY, ...scheduleData })
-            schedule.value = scheduleData
+            // Ensure we don't overwrite the fixed key with the server's _id
+            const { _id: remoteId, ...scheduleFields } = scheduleData
+            await db.schedules.put({ _id: SCHEDULE_DB_KEY, ...scheduleFields, remoteId })
+            schedule.value = scheduleFields
             console.log('✅ Schedule fetched from server and cached')
         } catch (error) {
             console.warn('Failed to fetch schedule from server, falling back to local data')
-            const localSchedule = await db.schedules.get(SCHEDULE_DB_KEY)
-            schedule.value = localSchedule ? { ...localSchedule } : {}
-            // 移除 _id 屬性，因為這只是資料庫的鍵
-            if (schedule.value._id) {
-                delete schedule.value._id
-            }
+            const localSchedule = await readScheduleFromIDB()
+            schedule.value = localSchedule
         }
     } else {
         console.log('Offline: Reading schedule from IndexedDB')
-        const localSchedule = await db.schedules.get(SCHEDULE_DB_KEY)
-        schedule.value = localSchedule ? { ...localSchedule } : {}
-        // 移除 _id 屬性，因為這只是資料庫的鍵
-        if (schedule.value._id) {
-            delete schedule.value._id
-        }
+        const localSchedule = await readScheduleFromIDB()
+        schedule.value = localSchedule
     }
   }
 
@@ -207,8 +226,9 @@ export const useTemplateStore = defineStore('template', () => {
     try {
       const response = await apiClient.put('/schedule', idOnlySchedule)
       const updatedScheduleData = response.data.data || response.data
-      await db.schedules.put({ _id: SCHEDULE_DB_KEY, ...updatedScheduleData })
-      schedule.value = updatedScheduleData
+      const { _id: remoteId, ...scheduleFields } = updatedScheduleData
+      await db.schedules.put({ _id: SCHEDULE_DB_KEY, ...scheduleFields, remoteId })
+      schedule.value = scheduleFields
     } catch (error) {
       console.error('Failed to update schedule:', error)
       toast.error('更新排程失敗')
