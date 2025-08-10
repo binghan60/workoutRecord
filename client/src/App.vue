@@ -185,16 +185,13 @@ const syncQueue = async () => {
     return
   }
 
-  isSyncing.value = true
-  uiStore.setSyncing(true)
-
   const jobs = await db.sync_queue.toArray()
   if (jobs.length === 0) {
-    isSyncing.value = false
-    uiStore.setSyncing(false)
     return
   }
-
+  
+  isSyncing.value = true
+  uiStore.setSyncing(true)
   console.log(`Sync started: ${jobs.length} items to process.`)
 
   for (const job of jobs) {
@@ -211,9 +208,9 @@ const syncQueue = async () => {
           break
       }
       await db.sync_queue.delete(job.id)
-      console.log(`Job ${job.id} (${job.action}) synced successfully.`)
+      console.log(`Job ${job.id || job.action} synced successfully.`)
     } catch (error) {
-      console.error(`Failed to sync job ${job.id}:`, error)
+      console.error(`Failed to sync job ${job.id || job.action}:`, error)
       if (error.response && error.response.status === 401) {
         console.error('Sync failed due to authentication error. Please log in again.')
         authStore.logout()
@@ -225,8 +222,6 @@ const syncQueue = async () => {
   isSyncing.value = false
   uiStore.setSyncing(false)
   
-  // After sync, reload the page to get the freshest data from the server
-  // This is a simple way to ensure UI consistency.
   if (jobs.length > 0) {
     console.log('Sync finished. Reloading for data consistency.')
     window.location.reload()
@@ -245,6 +240,8 @@ const handleOffline = () => {
 onMounted(() => {
   window.addEventListener('online', handleOnline)
   window.addEventListener('offline', handleOffline)
+  // Initial check in case the app loads offline
+  uiStore.setOfflineStatus(!navigator.onLine)
 })
 
 onBeforeUnmount(() => {

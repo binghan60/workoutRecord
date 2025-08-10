@@ -90,7 +90,7 @@ const expandedPanels = ref({})
 
 // Fetch workouts when the component is mounted
 onMounted(() => {
-  workoutStore.fetchWorkouts(page.value)
+  workoutStore.fetchAllWorkouts(page.value)
 })
 
 // Watch for page changes from the pagination component

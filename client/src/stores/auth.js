@@ -39,15 +39,15 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('token')
     localStorage.removeItem('isGuest')
     delete apiClient.defaults.headers.common['Authorization']
-    db.sync_queue.clear().then(() => console.log('Sync queue cleared on logout.'))
-    // Also clear all cached data
+    
+    db.sync_queue.clear()
     Promise.all([
       db.exercises.clear(),
       db.templates.clear(),
       db.schedules.clear(),
       db.workouts.clear(),
       db.bodyMetrics.clear()
-    ]).then(() => console.log('All local data caches cleared on logout.'))
+    ]).then(() => console.log('All local data caches and sync queue cleared on logout.'))
   }
 
   async function login(credentials) {
@@ -61,7 +61,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
     toast.success(`歡迎回來, ${response.data.data.user.username}!`)
     await router.push('/')
-    window.location.reload() // Reload to ensure all stores are fresh
+    window.location.reload()
   }
 
   async function register(userInfo) {
@@ -89,10 +89,6 @@ export const useAuthStore = defineStore('auth', () => {
     await router.push('/login')
   }
 
-  /**
-   * This is the new initialization function called from main.js
-   * It handles auth state and loads all necessary data before the app mounts.
-   */
   async function init() {
     const localToken = localStorage.getItem('token')
     const localUser = JSON.parse(localStorage.getItem('user'))
@@ -102,17 +98,13 @@ export const useAuthStore = defineStore('auth', () => {
       isGuest.value = true
       user.value = localUser || { _id: 'guest', username: '訪客', email: 'guest@example.com' }
     } else if (localToken && localUser) {
-      // Optimistically set auth state
       token.value = localToken
       user.value = localUser
       apiClient.defaults.headers.common['Authorization'] = `Bearer ${localToken}`
     } else {
-      // Not logged in
       return
     }
 
-    // If the user is authenticated (not a guest), load all data from IndexedDB/API.
-    // This happens BEFORE the app is mounted, so data is ready on first render.
     if (isAuthenticated.value && !isGuest.value) {
       console.log('App initializing: fetching all required data...')
       const exerciseStore = useExerciseStore()
@@ -120,7 +112,6 @@ export const useAuthStore = defineStore('auth', () => {
       const workoutStore = useWorkoutStore()
       const bodyMetricsStore = useBodyMetricsStore()
 
-      // Fetch all data in parallel
       await Promise.all([
         exerciseStore.fetchExercises(),
         templateStore.fetchTemplates(),
@@ -128,7 +119,7 @@ export const useAuthStore = defineStore('auth', () => {
         workoutStore.fetchAllWorkouts(),
         bodyMetricsStore.fetchRecords()
       ])
-      console.log('All initial data fetched.')
+      console.log('All initial data fetched and ready.')
     }
   }
 
@@ -140,7 +131,7 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     register,
     logout,
-    init, // Expose the new init function
+    init,
     loginAsGuest,
   }
 })
