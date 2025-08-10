@@ -17,7 +17,7 @@
             <v-checkbox :model-value="field.value" @update:model-value="field.onChange" label="記住我" />
           </Field>
 
-          <v-btn type="submit" color="primary" block size="large" :loading="isSubmitting || uiStore.isLoading"> 登入 </v-btn>
+          <v-btn type="submit" color="primary" block size="large" :loading="isSubmitting"> 登入 </v-btn>
         </Form>
       </v-card-text>
       <v-card-actions class="justify-center flex-column">

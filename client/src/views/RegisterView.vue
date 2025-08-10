@@ -51,7 +51,7 @@
             ></v-text-field>
           </Field>
 
-          <v-btn type="submit" color="primary" block size="large" :loading="isSubmitting || uiStore.isLoading">註冊</v-btn>
+          <v-btn type="submit" color="primary" block size="large" :loading="isSubmitting">註冊</v-btn>
         </Form>
       </v-card-text>
       <v-card-actions class="justify-center">

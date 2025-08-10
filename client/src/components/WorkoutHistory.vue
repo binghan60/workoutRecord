@@ -1,5 +1,5 @@
 <template>
-  <v-card v-if="workouts.length === 0 && !uiStore.isLoading" class="pa-8 text-center">
+  <v-card v-if="workouts.length === 0" class="pa-8 text-center">
     <v-card-text>
       <p class="text-h6">目前沒有任何訓練紀錄。</p>
       <p class="mt-2">立即開始記錄你的第一次訓練吧！</p>
