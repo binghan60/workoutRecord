@@ -68,6 +68,11 @@
 
         <!-- 操作按鈕 -->
         <div class="d-flex align-center">
+          <!-- PWA status light in navbar -->
+          <div class="d-flex align-center mr-4" aria-label="連線狀態">
+            <v-icon :color="statusLight.color" size="14" class="mr-1">mdi-circle</v-icon>
+            <span class="text-caption">{{ statusLight.text }}</span>
+          </div>
           <!-- 用戶選單 -->
           <v-menu offset-y>
             <template v-slot:activator="{ props }">
@@ -180,6 +185,16 @@ const { mobile, responsiveSizes, drawerBehavior, typographyScale, density } = us
 
 const isSyncing = ref(false)
 
+const statusLight = computed(() => {
+  if (uiStore.isOffline) {
+    return { color: 'red', text: '離線' }
+  }
+  if (uiStore.isSyncing) {
+    return { color: 'yellow', text: '同步中' }
+  }
+  return { color: 'light-green-accent-4', text: '連線正常' }
+})
+
 const syncQueue = async () => {
   if (!navigator.onLine || authStore.isGuest || isSyncing.value) {
     return
@@ -251,6 +266,10 @@ onMounted(() => {
   window.addEventListener('offline', handleOffline)
   // Initial check in case the app loads offline
   uiStore.setOfflineStatus(!navigator.onLine)
+  // If app starts online, attempt a sync in case there are leftover jobs
+  if (navigator.onLine) {
+    syncQueue()
+  }
 })
 
 onBeforeUnmount(() => {
