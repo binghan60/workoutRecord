@@ -11,6 +11,7 @@ export const useModalStore = defineStore('modal', () => {
   const selectedExerciseId = ref(null)
 
   const isBodyMetricsModalOpen = ref(false)
+  const bodyMetricToEdit = ref(null)
 
   const isTemplateEditModalOpen = ref(false)
   const templateToEdit = ref(null)
@@ -44,12 +45,14 @@ export const useModalStore = defineStore('modal', () => {
     isExerciseModalOpen.value = false
   }
 
-  function showBodyMetricsModal() {
+  function showBodyMetricsModal(record = null) {
+    bodyMetricToEdit.value = record ? JSON.parse(JSON.stringify(record)) : null
     isBodyMetricsModalOpen.value = true
   }
 
   function hideBodyMetricsModal() {
     isBodyMetricsModalOpen.value = false
+    bodyMetricToEdit.value = null
   }
 
   function showTemplateEditModal(template) {
@@ -74,6 +77,7 @@ export const useModalStore = defineStore('modal', () => {
     hideExerciseModal,
     selectedExerciseId,
     isBodyMetricsModalOpen,
+    bodyMetricToEdit,
     showBodyMetricsModal,
     hideBodyMetricsModal,
     isTemplateEditModalOpen,

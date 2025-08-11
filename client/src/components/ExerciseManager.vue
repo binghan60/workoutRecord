@@ -21,20 +21,12 @@
   <v-card>
     <v-card-title class="d-flex justify-space-between align-center">
       <span class="text-h6">我的動作清單</span>
-      <v-switch
-        v-if="!authStore.isGuest"
-        :model-value="uiStore.showBuiltInExercises"
-        @update:model-value="uiStore.toggleShowBuiltInExercises"
-        label="顯示內建動作"
-        color="primary"
-        dense
-        hide-details
-      ></v-switch>
+      <v-switch v-if="!authStore.isGuest" :model-value="uiStore.showBuiltInExercises" @update:model-value="uiStore.toggleShowBuiltInExercises" label="顯示內建動作" color="primary" dense hide-details></v-switch>
     </v-card-title>
     <v-card-text>
       <div v-if="displayedExercises.length > 0">
-        <v-expansion-panels multiple>
-          <v-expansion-panel v-for="group in displayedExercises" :key="group.groupName">
+        <v-expansion-panels multiple v-model="openPanels">
+          <v-expansion-panel v-for="group in displayedExercises" :key="group.groupName" :value="group.groupName">
             <v-expansion-panel-title class="group-title">
               {{ group.groupName }}
             </v-expansion-panel-title>
@@ -62,7 +54,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useExerciseStore } from '@/stores/exercise'
 import { useModalStore } from '@/stores/modal'
@@ -82,6 +74,19 @@ const rules = { required: (value) => !!value || '此欄位為必填' }
 const displayedExercises = computed(() => {
   return uiStore.showBuiltInExercises ? exerciseStore.groupedAllExercises : exerciseStore.groupedCustomExercises
 })
+
+// 控制展開的群組，避免群組被刪除後自動展開其它群組
+const openPanels = ref([])
+
+watch(
+  displayedExercises,
+  (groups) => {
+    // 僅保留仍存在的 groupName，避免自動展開其他群組
+    const valid = new Set(groups.map((g) => g.groupName))
+    openPanels.value = openPanels.value.filter((name) => valid.has(name))
+  },
+  { immediate: true },
+)
 
 const isDeletable = (exercise) => {
   if (authStore.isGuest) {

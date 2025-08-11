@@ -8,16 +8,29 @@ import { createDataService } from '@/utils/dataService'
 const toast = useToast()
 
 export const useBodyMetricsStore = defineStore('bodyMetrics', () => {
+  // --- Helpers: robust same-day comparison without timezone pitfalls ---
+  const pad2 = (n) => String(n).padStart(2, '0')
+  const toDayKey = (value) => {
+    if (!value) return ''
+    // If it's a plain date string (YYYY-MM-DD), treat it as that day directly
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+    // Otherwise, parse and use LOCAL components so it matches how backend saved local-midnight dates
+    const d = new Date(value)
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+  }
+
   const records = ref([])
   const modalStore = useModalStore()
   const authStore = useAuthStore()
 
   // --- Data Service ---
-  const dataService = computed(() => createDataService(authStore, {
-    storageKey: 'guest_body_metrics',
-    apiEndpoint: '/body-metrics',
-    dbTable: 'bodyMetrics'
-  }))
+  const dataService = computed(() =>
+    createDataService(authStore, {
+      storageKey: 'guest_body_metrics',
+      apiEndpoint: '/body-metrics',
+      dbTable: 'bodyMetrics',
+    }),
+  )
   // ---
 
   const sortedRecords = computed(() => {
@@ -37,21 +50,42 @@ export const useBodyMetricsStore = defineStore('bodyMetrics', () => {
     }
   }
 
-  async function addRecord(record) {
-    const recordDateStr = new Date(record.date).toISOString().split('T')[0]
-
-    const existingRecord = records.value.find((r) => {
-      const existingDateStr = new Date(r.date).toISOString().split('T')[0]
-      return existingDateStr === recordDateStr
-    })
+  async function saveOrUpdateRecord(record) {
+    const recordDateStr = toDayKey(record.date)
+    console.log('[BodyMetrics] recordDateStr:', recordDateStr)
+    console.log('[BodyMetrics] records length:', records.value.length)
+    console.log('[BodyMetrics] dayKeys in store:', records.value.map(r => toDayKey(r.date)))
+    const existingRecord = records.value.find((r) => toDayKey(r.date) === recordDateStr)
+    console.log('[BodyMetrics] matched existingRecord?', !!existingRecord)
 
     const saveAction = async () => {
+      console.log('[BodyMetrics] saveAction -> existingRecord:', existingRecord)
+      console.log('[BodyMetrics] saveAction -> payload:', record)
+
       try {
-        const result = await dataService.value.add(record)
+        // Guest mode: update existing record in localStorage to prevent duplicates
+        const isGuest = dataService.value.isGuest
+        let result
+        if (existingRecord) {
+          // 前端已確認要覆蓋同日紀錄：
+          // - 訪客模式：更新 localStorage
+          // - 登入模式：呼叫 PUT /body-metrics/:id 以覆蓋同日紀錄
+          if (isGuest) {
+            result = await dataService.value.update(existingRecord._id, record)
+          } else {
+            result = await dataService.value.update(existingRecord._id, record)
+          }
+        } else {
+          // 新增
+          result = await dataService.value.add(record)
+        }
+
         // Optimistically update or add the record in the local state
-        const index = records.value.findIndex(r => r._id === result._id || new Date(r.date).toISOString().split('T')[0] === recordDateStr)
+        const index = records.value.findIndex((r) => r._id === (result._id || existingRecord?._id) || new Date(r.date).toISOString().split('T')[0] === recordDateStr)
         if (index !== -1) {
-          records.value[index] = { ...records.value[index], ...result }
+          // Preserve original _id when merging
+          const preservedId = records.value[index]._id
+          records.value[index] = { ...records.value[index], ...result, _id: preservedId }
         } else {
           records.value.push(result)
         }
@@ -101,5 +135,5 @@ export const useBodyMetricsStore = defineStore('bodyMetrics', () => {
     }
   }
 
-  return { records: sortedRecords, fetchRecords, addRecord, deleteRecord }
+  return { records: sortedRecords, fetchRecords, saveOrUpdateRecord, deleteRecord }
 })

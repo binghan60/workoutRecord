@@ -3,21 +3,40 @@
     <v-row>
       <v-col cols="12">
         <v-card>
-          <v-card-title class="d-flex justify-space-between align-center">
+          <v-card-title>
             <span>同步佇列管理</span>
-            <div>
-              <v-btn @click="refreshQueue" color="primary" variant="outlined" class="mr-2">
-                <v-icon left>mdi-refresh</v-icon>
-                重新整理
-              </v-btn>
-              <v-btn @click="clearAllQueue" color="error" variant="outlined" :disabled="jobs.length === 0">
-                <v-icon left>mdi-delete-sweep</v-icon>
-                清空佇列
-              </v-btn>
-            </div>
           </v-card-title>
-          
           <v-card-text>
+            <div class="mb-2">
+              <template v-if="!$vuetify.display.xs">
+                <div class="d-flex align-center">
+                  <v-btn @click="refreshQueue" color="primary" variant="outlined" class="mr-2">
+                    <v-icon left>mdi-refresh</v-icon>
+                    重新整理
+                  </v-btn>
+                  <v-btn @click="clearAllQueue" color="error" variant="outlined" :disabled="jobs.length === 0">
+                    <v-icon left>mdi-delete-sweep</v-icon>
+                    清空佇列
+                  </v-btn>
+                </div>
+              </template>
+              <template v-else>
+                <v-row dense>
+                  <v-col cols="12">
+                    <v-btn @click="refreshQueue" color="primary" variant="outlined" block size="small">
+                      <v-icon left>mdi-refresh</v-icon>
+                      重新整理
+                    </v-btn>
+                  </v-col>
+                  <v-col cols="12">
+                    <v-btn @click="clearAllQueue" color="error" variant="outlined" :disabled="jobs.length === 0" block size="small">
+                      <v-icon left>mdi-delete-sweep</v-icon>
+                      清空佇列
+                    </v-btn>
+                  </v-col>
+                </v-row>
+              </template>
+            </div>
             <div v-if="loading" class="text-center py-8">
               <v-progress-circular indeterminate color="primary"></v-progress-circular>
               <p class="mt-4">載入中...</p>

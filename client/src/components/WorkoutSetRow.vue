@@ -1,5 +1,5 @@
 <template>
-  <v-card :class="['workout-set-row transition-all duration-300 mb-2', isCompleted ? 'bg-success-darken-2' : 'bg-surface-lighten-3']" :elevation="isCompleted ? 2 : 1" rounded="lg">
+  <v-card :class="['workout-set-row transition-all duration-300 mb-2', { 'completed-bg': isCompleted }]" :elevation="isCompleted ? 2 : 1" rounded="lg" :color="isCompleted ? 'success' : undefined" :variant="isCompleted ? 'tonal' : 'elevated'">
     <v-card-text :class="`pa-${responsiveSpacing.padding}`">
       <v-row align="center" no-gutters class="fill-height">
         <!-- Set Number - 響應式尺寸 -->
@@ -150,7 +150,9 @@ watch(isCompleted, async (newValue, oldValue) => {
 }
 
 /* 完成狀態的特殊效果 */
-.workout-set-row.bg-success-lighten-4 {
+.completed-bg {
+  background: rgba(var(--v-theme-success), 0.12) !important; /* 成功綠背景的柔和版 */
+  border-left-color: rgb(var(--v-theme-success));
   animation: completedGlow 0.5s ease-out;
 }
 

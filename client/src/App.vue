@@ -497,8 +497,8 @@ const navItems = computed(() => [
   { title: '開始訓練', icon: 'mdi-dumbbell', to: '/' },
   { title: '儀表板', icon: 'mdi-view-dashboard', to: '/dashboard' },
   { title: '歷史紀錄', icon: 'mdi-history', to: '/history' },
-  { title: '動作庫', icon: 'mdi-weight-lifter', to: '/exercises', badge: exerciseStore.allExercises.filter((ex) => ex.isCustom).length || null },
-  { title: '訓練範本', icon: 'mdi-clipboard-list', to: '/templates', badge: templateStore.templates.filter((t) => t.isCustom).length || null },
+  { title: '動作管理', icon: 'mdi-weight-lifter', to: '/exercises' },
+  { title: '訓練組合', icon: 'mdi-clipboard-list', to: '/templates' },
   { title: '訓練排程', icon: 'mdi-calendar-month', to: '/schedule' },
   { title: '同步管理', icon: 'mdi-sync', to: '/sync-queue', badge: syncQueueCount.value || null },
 ])

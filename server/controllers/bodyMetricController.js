@@ -59,3 +59,40 @@ export const deleteRecord = async (req, res) => {
     res.status(500).json({ message: error.message })
   }
 }
+
+// Update a record by its ID (PUT), ensuring it belongs to the logged-in user
+export const updateRecord = async (req, res) => {
+  try {
+    const { id } = req.params
+    const userId = req.user.id
+
+    // Normalize date if provided
+    const update = { ...req.body }
+    if (update.date) {
+      const d = new Date(update.date)
+      d.setHours(0, 0, 0, 0)
+      update.date = d
+    }
+
+    const record = await BodyMetric.findOne({ _id: id, user: userId })
+    if (!record) {
+      return res.status(404).json({ message: 'Record not found or user not authorized' })
+    }
+
+    // Apply only defined fields
+    Object.keys(update).forEach((key) => {
+      if (update[key] !== undefined) {
+        record[key] = update[key]
+      }
+    })
+
+    await record.save()
+    return res.status(200).json(record)
+  } catch (error) {
+    // Handle unique index conflict (user + date)
+    if (error.code === 11000) {
+      return res.status(409).json({ message: 'A record for this date already exists' })
+    }
+    return res.status(500).json({ message: error.message })
+  }
+}

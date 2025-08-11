@@ -14,7 +14,18 @@
     <!-- Active Workout Interface -->
     <div v-else>
       <!-- Enhanced Rest Timer -->
-      <EnhancedRestTimer :is-resting="isResting" :rest-time-remaining="restTimeRemaining" :initial-rest-time="initialRestTime" :current-exercise-name="currentExercise?.name || '訓練動作'" @add-rest-time="addRestTime" @stop-rest-timer="stopRestTimer" @reset-rest-timer="resetRestTimer" @pause-rest-timer="pauseRestTimer" />
+      <EnhancedRestTimer
+          :is-resting="isResting"
+          :rest-time-remaining="restTimeRemaining"
+          :initial-rest-time="initialRestTime"
+          :current-exercise-name="currentExercise?.name || '訓練動作'"
+          :next-exercise="nextSetInfo?.exercise || null"
+          :next-exercise-hint="nextSetInfo?.hint || ''"
+          @add-rest-time="addRestTime"
+          @stop-rest-timer="stopRestTimer"
+          @reset-rest-timer="resetRestTimer"
+          @pause-rest-timer="pauseRestTimer"
+        />
 
       <Form ref="formRef" @submit="confirmSubmission" :initial-values="getInitialValues">
         <Field name="workoutName" type="hidden" />
@@ -174,7 +185,8 @@ if (savedStateJSON) {
             isRestPaused.value = savedState.isRestPaused
           }
 
-          startRestTimer(newRemainingTime)
+          // 使用恢復的剩餘時間，但保留初始休息時間作為分母
+          startRestTimer(newRemainingTime, { preserveInitial: true })
         }
       }
     } else {
@@ -200,6 +212,28 @@ const dayMap = {
 const daysOfWeek = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
 const currentExercises = computed(() => formRef.value?.values?.exercises || [])
 const currentExercise = computed(() => currentExercises.value[currentExerciseIndex.value] || null)
+
+const nextSetInfo = computed(() => {
+  const ex = currentExercise.value
+  if (!ex || !ex.sets || ex.sets.length === 0) return null
+  const nextSet = ex.sets.find((s) => !s.isCompleted)
+  if (nextSet) {
+    const hintParts = []
+    if (nextSet.weight != null && nextSet.weight !== '') hintParts.push(`${nextSet.weight}kg`)
+    if (nextSet.reps != null && nextSet.reps !== '') hintParts.push(`${nextSet.reps}次`)
+    return { exercise: { name: ex.name }, hint: hintParts.join(' × ') }
+  }
+  // 如果本動作組數已完成，顯示下一個動作的第一組
+  const nextEx = currentExercises.value[currentExerciseIndex.value + 1]
+  if (nextEx) {
+    const first = nextEx.sets && nextEx.sets[0] ? nextEx.sets[0] : null
+    const hintParts = []
+    if (first && first.weight != null && first.weight !== '') hintParts.push(`${first.weight}kg`)
+    if (first && first.reps != null && first.reps !== '') hintParts.push(`${first.reps}次`)
+    return { exercise: { name: nextEx.name }, hint: hintParts.join(' × ') }
+  }
+  return null
+})
 
 const allSetsCompleted = computed(() => {
   if (!currentExercise.value || !currentExercise.value.sets) return false
@@ -399,11 +433,13 @@ function completeSet(exIndex, setIndex) {
   startRestTimer(exercise.restTime)
 }
 
-function startRestTimer(duration) {
+function startRestTimer(duration, options = { preserveInitial: false }) {
   stopRestTimer(false)
   isResting.value = true
   restTimeRemaining.value = duration
-  initialRestTime.value = duration
+  if (!options?.preserveInitial) {
+    initialRestTime.value = duration
+  }
   isRestPaused.value = false
 
   // 如果 restStartTime 還沒有被設定 (表示這不是一次恢復操作)，才設定為現在

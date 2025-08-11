@@ -2,7 +2,7 @@
   <v-container fluid>
     <v-row>
       <v-col cols="12" class="text-right">
-        <v-btn color="primary" @click="modalStore.showBodyMetricsModal">
+        <v-btn color="primary" @click="modalStore.showBodyMetricsModal()">
           <v-icon left>mdi-plus</v-icon>
           新增身體數值紀錄
         </v-btn>
@@ -46,9 +46,29 @@
               </template>
 
               <template v-slot:[`item.actions`]="{ item }">
-                <v-btn icon color="red" size="x-small" @click="handleDelete(item._id)">
-                  <v-icon>mdi-delete</v-icon>
-                </v-btn>
+                <template v-if="xs">
+                  <v-menu location="bottom end">
+                    <template #activator="{ props }">
+                      <v-btn v-bind="props" icon color="primary" size="small" aria-label="更多操作">
+                        <v-icon>mdi-dots-vertical</v-icon>
+                      </v-btn>
+                    </template>
+                    <v-list density="compact">
+                      <v-list-item @click="handleEdit(item)" prepend-icon="mdi-pencil" title="編輯" />
+                      <v-list-item @click="handleDelete(item._id)" prepend-icon="mdi-delete" title="刪除" />
+                    </v-list>
+                  </v-menu>
+                </template>
+                <template v-else>
+                  <div class="d-flex align-center justify-end" style="gap: 8px;">
+                    <v-btn icon color="primary" size="small" aria-label="編輯" @click="handleEdit(item)">
+                      <v-icon>mdi-pencil</v-icon>
+                    </v-btn>
+                    <v-btn icon color="red" size="small" aria-label="刪除" @click="handleDelete(item._id)">
+                      <v-icon>mdi-delete</v-icon>
+                    </v-btn>
+                  </div>
+                </template>
               </template>
             </v-data-table>
           </v-card-text>
@@ -60,6 +80,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useResponsiveDesign } from '@/composables/useResponsiveDesign'
 import { useBodyMetricsStore } from '@/stores/bodyMetrics'
 import { useModalStore } from '@/stores/modal'
 import { Chart } from 'highcharts-vue'
@@ -68,6 +89,7 @@ import { useHighchartsTheme } from '@/composables/useHighchartsTheme'
 const bodyMetricsStore = useBodyMetricsStore()
 const modalStore = useModalStore()
 const { highchartsTheme } = useHighchartsTheme()
+const { xs } = useResponsiveDesign()
 
 const metricLabels = {
   weight: '體重 (kg)',
@@ -94,9 +116,13 @@ const formatDate = (dateString) => {
 
 const handleDelete = (id) => {
   modalStore.showConfirmation('確認刪除', '您確定要刪除這筆紀錄嗎？此操作無法復原。', () => {
-    console.log(id)
     bodyMetricsStore.deleteRecord(id)
   })
+}
+
+const handleEdit = (item) => {
+  // 開啟 Modal 並帶入欲編輯的紀錄
+  modalStore.showBodyMetricsModal(item)
 }
 
 const tableHeaders = [

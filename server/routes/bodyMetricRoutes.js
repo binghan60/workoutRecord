@@ -9,6 +9,6 @@ router.use(authMiddleware)
 
 router.route('/').get(bodyMetricController.getAllRecords).post(bodyMetricController.addOrUpdateRecord)
 
-router.route('/:id').delete(bodyMetricController.deleteRecord)
+router.route('/:id').put(bodyMetricController.updateRecord).delete(bodyMetricController.deleteRecord)
 
 export default router
