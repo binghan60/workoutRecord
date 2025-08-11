@@ -59,7 +59,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useBodyMetricsStore } from '@/stores/bodyMetrics'
 import { useModalStore } from '@/stores/modal'
 import { Chart } from 'highcharts-vue'
@@ -147,5 +147,8 @@ const chartOptions = computed(() => {
       enabled: false,
     },
   }
+})
+onMounted(() => {
+  bodyMetricsStore.fetchRecords()
 })
 </script>
