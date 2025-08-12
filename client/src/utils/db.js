@@ -19,6 +19,18 @@ db.version(2).stores({
   bodyMetrics: '&_id, date'   // Cache for body metrics
 });
 
+// Version 3: Add userId index to all tables to separate data per user
+// Note: This will upgrade existing DB and add new indexes without data loss
+// We'll ensure at write-time that userId is set on each record and at read-time we filter by current userId
+db.version(3).stores({
+  sync_queue: '++id, action, endpoint, userId',
+  exercises: '&_id, userId, name',
+  templates: '&_id, userId, name',
+  schedules: '&_id, userId, date',
+  workouts: '&_id, userId, date',
+  bodyMetrics: '&_id, userId, date'
+});
+
 // The '&' prefix on _id means it's the primary key and must be unique.
 // Additional fields like 'name' or 'date' are indexed for faster lookups.
 

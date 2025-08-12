@@ -503,6 +503,11 @@ const navItems = computed(() => [
   { title: '同步管理', icon: 'mdi-sync', to: '/sync-queue', badge: syncQueueCount.value || null },
 ])
 
+// 監聽自訂事件，讓 badge 即時刷新
+window.addEventListener('rovodev:sync-queue-changed', () => {
+  updateSyncQueueCount()
+})
+
 const currentRouteTitle = computed(() => {
   const currentRoute = navItems.value.find((item) => item.to === route.path)
   return currentRoute ? currentRoute.title : 'Workout Record'

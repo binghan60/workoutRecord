@@ -176,7 +176,7 @@ export const useTemplateStore = defineStore('template', () => {
             const scheduleData = response.data.data || response.data || {}
             // Ensure we don't overwrite the fixed key with the server's _id
             const { _id: remoteId, ...scheduleFields } = scheduleData
-            await db.schedules.put({ _id: SCHEDULE_DB_KEY, ...scheduleFields, remoteId })
+            await db.schedules.put({ _id: SCHEDULE_DB_KEY, ...scheduleFields, remoteId, userId: authStore.user?._id || 'guest' })
             schedule.value = scheduleFields
             console.log('✅ Schedule fetched from server and cached')
         } catch (error) {
@@ -198,7 +198,7 @@ export const useTemplateStore = defineStore('template', () => {
         // Filter out offline template IDs (they don't exist on server yet)
         idOnlySchedule[day] = schedule.value[day]
           .map((template) => template._id || template)
-          .filter((id) => !id.toString().startsWith('offline_'))
+          .filter((id) => !id.toString().startsWith('offline_') && !id.toString().startsWith('temp_'))
       }
     }
 
@@ -213,7 +213,7 @@ export const useTemplateStore = defineStore('template', () => {
 
     // Deep-clone to ensure we store plain serializable objects (avoid Vue proxies)
     const cleanSchedule = JSON.parse(JSON.stringify(schedule.value))
-    const scheduleToSave = { _id: SCHEDULE_DB_KEY, ...cleanSchedule }
+    const scheduleToSave = { _id: SCHEDULE_DB_KEY, ...cleanSchedule, userId: authStore.user?._id || 'guest' }
     await db.schedules.put(scheduleToSave) // Optimistic update to local DB
 
     if (!navigator.onLine) {
@@ -288,7 +288,7 @@ export const useTemplateStore = defineStore('template', () => {
     try {
       await initializeDB()
       const cleanSchedule = JSON.parse(JSON.stringify(schedule.value))
-      await db.schedules.put({ _id: SCHEDULE_DB_KEY, ...cleanSchedule })
+      await db.schedules.put({ _id: SCHEDULE_DB_KEY, ...cleanSchedule, userId: authStore.user?._id || 'guest' })
     } catch (e) {
       console.warn('Failed to persist schedule locally after add:', e)
     }
@@ -304,7 +304,7 @@ export const useTemplateStore = defineStore('template', () => {
     try {
       await initializeDB()
       const cleanSchedule = JSON.parse(JSON.stringify(schedule.value))
-      await db.schedules.put({ _id: SCHEDULE_DB_KEY, ...cleanSchedule })
+      await db.schedules.put({ _id: SCHEDULE_DB_KEY, ...cleanSchedule, userId: authStore.user?._id || 'guest' })
     } catch (e) {
       console.warn('Failed to persist schedule locally after remove:', e)
     }

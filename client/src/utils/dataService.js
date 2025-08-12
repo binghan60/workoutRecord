@@ -64,11 +64,11 @@ export class DataService {
         return [...data, ...offlineItems];
       } catch (error) {
         console.error(`API fetch for ${this.dbTable} failed, falling back to local data.`, error);
-        return await db[this.dbTable].toArray();
+        return await db[this.dbTable].where('userId').equals(this.userId || 'guest').toArray();
       }
     } else {
       console.log(`Offline: Reading ${this.dbTable} from IndexedDB.`);
-      return await db[this.dbTable].toArray();
+      return await db[this.dbTable].where('userId').equals(this.userId || 'guest').toArray();
     }
   }
 
@@ -93,11 +93,11 @@ export class DataService {
         return data;
       } catch (error) {
         console.warn(`API fetch for item ${id} failed, falling back to local DB.`, error);
-        return await db[this.dbTable].get(id);
+        return await db[this.dbTable].where('_id').equals(id).and(item => item.userId === (this.userId || 'guest')).first();
       }
     } else {
       console.log(`Offline: Getting item ${id} from IndexedDB table "${this.dbTable}".`);
-      return await db[this.dbTable].get(id);
+      return await db[this.dbTable].where('_id').equals(id).and(item => item.userId === (this.userId || 'guest')).first();
     }
   }
 
@@ -147,10 +147,12 @@ export class DataService {
         console.log('📝 Creating optimistic item:', optimisticItem);
         
         // 確保 payload 也是可序列化的，並記錄關聯的離線 ID
+        const payload = JSON.parse(JSON.stringify(cleanData))
+        delete payload._id // 讓伺服器產生正式 _id
         const job = { 
           action: 'add', 
           endpoint: this.apiEndpoint, 
-          payload: JSON.parse(JSON.stringify(data)), 
+          payload, 
           timestamp: new Date().toISOString(),
           offlineId: optimisticItem._id // 記錄離線 ID 用於後續清理
         };
@@ -163,7 +165,7 @@ export class DataService {
         try { window.dispatchEvent(new CustomEvent('rovodev:sync-queue-changed')) } catch {}
         
         // 再添加到本地資料庫
-        await db[this.dbTable].put(optimisticItem);
+        await db[this.dbTable].put({ ...optimisticItem, userId: this.userId || 'guest' });
         console.log(`✅ Offline item added to ${this.dbTable}:`, optimisticItem);
         
         // Trigger a soft refresh to include this item in views that rely on fetchAll
@@ -188,7 +190,7 @@ export class DataService {
       isOptimistic: true,
       isCustom: true
     }
-    await db[this.dbTable].put(optimisticItem)
+    await db[this.dbTable].put({ ...optimisticItem, userId: this.userId || 'guest' })
 
     // Fire-and-forget background request
     apiClient.post(this.apiEndpoint, data, { headers: { 'X-Background-Sync': 'true' } })
@@ -198,7 +200,7 @@ export class DataService {
         if (Array.isArray(normalized)) {
           await db[this.dbTable].bulkPut(normalized)
         } else {
-          await db[this.dbTable].put(normalized)
+          await db[this.dbTable].put({ ...normalized, userId: this.userId || 'guest' })
         }
         // Optionally clean up temp item if ids differ
         if (!Array.isArray(normalized) && optimisticItem._id !== normalized._id) {
@@ -207,7 +209,8 @@ export class DataService {
       })
       .catch(async (error) => {
         console.error('Background add failed, queuing for retry:', error)
-        await db.sync_queue.add({ action: 'add', endpoint: this.apiEndpoint, payload: cleanData, timestamp: new Date().toISOString() })
+        await db.sync_queue.add({ action: 'add', endpoint: this.apiEndpoint, payload: cleanData, timestamp: new Date().toISOString(), offlineId: optimisticItem._id })
+        try { window.dispatchEvent(new CustomEvent('rovodev:sync-queue-changed')) } catch {}
       })
 
     return optimisticItem;
@@ -237,26 +240,48 @@ export class DataService {
     const cleanData = JSON.parse(JSON.stringify(data))
     cleanData.updatedAt = new Date().toISOString()
 
+    // 若是臨時(temp_)或離線(offline_)項目，僅在本地更新，並嘗試合併至待新增的同步任務
+    if (id.toString().startsWith('temp_') || id.toString().startsWith('offline_')) {
+      try {
+        await db[this.dbTable].update(id, cleanData)
+        // 嘗試找到對應的 add 任務並更新其 payload
+        try {
+          const pendingAdds = await db.sync_queue.where('endpoint').equals(this.apiEndpoint).toArray()
+          const targetJob = pendingAdds.find(j => j.action === 'add' && j.offlineId === id)
+          if (targetJob) {
+            targetJob.payload = cleanData
+            await db.sync_queue.put(targetJob)
+          }
+        } catch (e) {
+          console.warn('Failed to update pending add job for temp/offline item:', e)
+        }
+      } catch (e) {
+        console.error('Failed to update local temp/offline item:', e)
+      }
+      return { ...cleanData, _id: id, isOffline: true }
+    }
+
     if (!navigator.onLine) {
       // Optimistic local update + queue background sync
       console.log('Offline: Queuing UPDATE operation.');
       const job = { action: 'update', endpoint: `${this.apiEndpoint}/${id}`, payload: cleanData, timestamp: new Date().toISOString() };
       await db.sync_queue.add(job);
-      await db[this.dbTable].update(id, cleanData);
+      try { window.dispatchEvent(new CustomEvent('rovodev:sync-queue-changed')) } catch {}
+      await db[this.dbTable].update(id, { ...cleanData, userId: this.userId || 'guest' });
       return { ...cleanData, _id: id, isOffline: true };
     }
 
     // Online: optimistic local update + background request
-    await db[this.dbTable].update(id, cleanData)
+    await db[this.dbTable].update(id, { ...cleanData, userId: this.userId || 'guest' })
     try { window.dispatchEvent(new CustomEvent('rovodev:local-data-changed', { detail: { table: this.dbTable, action: 'update', id } })) } catch {}
     apiClient.put(`${this.apiEndpoint}/${id}`, cleanData, { headers: { 'X-Background-Sync': 'true' } })
       .then(async (response) => {
         const savedData = response.data.data || response.data
         const normalized = JSON.parse(JSON.stringify(savedData))
         if (Array.isArray(normalized)) {
-          await db[this.dbTable].bulkPut(normalized)
+          await db[this.dbTable].bulkPut(normalized.map(item => ({ ...item, userId: this.userId || 'guest' })))
         } else {
-          await db[this.dbTable].put(normalized)
+          await db[this.dbTable].put({ ...normalized, userId: this.userId || 'guest' })
         }
       })
       .catch(async (error) => {
@@ -284,8 +309,8 @@ export class DataService {
     // 確保資料庫已初始化
     await initializeDB();
 
-    // 如果是離線創建的項目，直接從本地刪除，無需同步
-    if (id.toString().startsWith('offline_')) {
+    // 如果是離線創建的項目，或是臨時(temp_)樂觀項目，直接從本地刪除，無需同步
+    if (id.toString().startsWith('offline_') || id.toString().startsWith('temp_')) {
       console.log('🔌 Deleting offline-created item - no server sync needed');
       
       // 1. 從本地資料庫刪除
@@ -296,17 +321,19 @@ export class DataService {
       try {
         console.log('🧹 Cleaning ALL sync queue jobs for this endpoint to prevent conflicts');
         
-        // 查找所有相關端點的任務
+        // 查找所有相關端點的任務（例如 /templates 的 add 任務）以及針對特定資源的任務（例如 /templates/{id} 的 update/delete 任務）
         const allJobs = await db.sync_queue.where('endpoint').equals(this.apiEndpoint).toArray();
-        console.log(`📋 Found ${allJobs.length} total jobs for endpoint ${this.apiEndpoint}`);
+        const directJobs = await db.sync_queue.where('endpoint').equals(`${this.apiEndpoint}/${id}`).toArray();
+        const jobs = [...allJobs, ...directJobs]
+        console.log(`📋 Found ${jobs.length} related jobs for endpoint ${this.apiEndpoint} and item ${id}`);
         
         let removedCount = 0;
         
         // 清理所有與此項目相關的任務
-        for (const job of allJobs) {
+        for (const job of jobs) {
           let shouldRemove = false;
           
-          // 精確匹配：使用 offlineId
+          // 精確匹配：使用 offlineId（支援 offline_/temp_）
           if (job.offlineId === id) {
             shouldRemove = true;
             console.log(`🎯 Found exact match by offlineId: ${job.id}`);
@@ -315,14 +342,22 @@ export class DataService {
           // 如果是最近創建的 ADD 任務（可能是同一個項目）
           else if (job.action === 'add' && job.payload) {
             const jobTime = new Date(job.timestamp).getTime();
-            const itemTime = parseInt(id.replace('offline_', ''));
-            const timeDiff = Math.abs(jobTime - itemTime);
-            
-            // 10 秒內的 ADD 任務很可能是同一個項目
-            if (timeDiff < 10000) {
-              shouldRemove = true;
-              console.log(`⏰ Found time-matched ADD job: ${job.id} (${timeDiff}ms diff)`);
+            const base = id.startsWith('offline_') ? 'offline_' : (id.startsWith('temp_') ? 'temp_' : null)
+            if (base) {
+              const itemTime = parseInt(id.replace(base, ''));
+              const timeDiff = Math.abs(jobTime - itemTime);
+              // 10 秒內的 ADD 任務很可能是同一個項目
+              if (!isNaN(itemTime) && timeDiff < 10000) {
+                shouldRemove = true;
+                console.log(`⏰ Found time-matched ADD job: ${job.id} (${timeDiff}ms diff)`);
+              }
             }
+          }
+          
+          // 針對同一資源的 update/delete 任務
+          if (!shouldRemove && job.endpoint === `${this.apiEndpoint}/${id}`) {
+            shouldRemove = true
+            console.log(`🧩 Found direct endpoint job to remove: ${job.id} -> ${job.endpoint}`)
           }
           
           if (shouldRemove) {
@@ -339,6 +374,8 @@ export class DataService {
         // 繼續執行，不影響主要功能
       }
       
+      // 通知 UI 佇列數量已變更
+      try { window.dispatchEvent(new CustomEvent('rovodev:sync-queue-changed')) } catch {}
       return true;
     }
 
@@ -352,6 +389,7 @@ export class DataService {
       const job = { action: 'delete', endpoint: `${this.apiEndpoint}/${id}`, timestamp: new Date().toISOString() };
       await db.sync_queue.add(job);
       console.log('📤 Delete job added to sync queue');
+      try { window.dispatchEvent(new CustomEvent('rovodev:sync-queue-changed')) } catch {}
       return true;
     }
 

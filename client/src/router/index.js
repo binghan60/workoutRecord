@@ -2,61 +2,72 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { loadInitialData } from '@/utils/initializer' // Import our new initializer
 
+// Eagerly import all views (disable lazy-loading)
+import LoginView from '../views/LoginView.vue'
+import RegisterView from '../views/RegisterView.vue'
+import WorkoutView from '../views/WorkoutView.vue'
+import DashboardView from '../views/DashboardView.vue'
+import HistoryView from '../views/HistoryView.vue'
+import TemplatesView from '../views/TemplatesView.vue'
+import ExercisesView from '../views/ExercisesView.vue'
+import ScheduleView from '../views/ScheduleView.vue'
+import SyncQueueView from '../views/SyncQueueView.vue'
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
       path: '/login',
       name: 'login',
-      component: () => import('../views/LoginView.vue'),
+      component: LoginView,
       meta: { requiresGuest: true },
     },
     {
       path: '/register',
       name: 'register',
-      component: () => import('../views/RegisterView.vue'),
+      component: RegisterView,
       meta: { requiresGuest: true },
     },
     {
       path: '/',
       name: 'home',
-      component: () => import('../views/WorkoutView.vue'),
+      component: WorkoutView,
       meta: { requiresAuth: true },
     },
     {
       path: '/dashboard',
       name: 'dashboard',
-      component: () => import('../views/DashboardView.vue'),
+      component: DashboardView,
       meta: { requiresAuth: true },
     },
     {
       path: '/history',
       name: 'history',
-      component: () => import('../views/HistoryView.vue'),
+      component: HistoryView,
       meta: { requiresAuth: true },
     },
     {
       path: '/templates',
       name: 'templates',
-      component: () => import('../views/TemplatesView.vue'),
+      component: TemplatesView,
       meta: { requiresAuth: true },
     },
     {
       path: '/exercises',
       name: 'exercises',
-      component: () => import('../views/ExercisesView.vue'),
+      component: ExercisesView,
       meta: { requiresAuth: true },
     },
     {
       path: '/schedule',
       name: 'schedule',
-      component: () => import('../views/ScheduleView.vue'),
+      component: ScheduleView,
       meta: { requiresAuth: true },
     },
     {
       path: '/sync-queue',
       name: 'sync-queue',
-      component: () => import('../views/SyncQueueView.vue'),
+      component: SyncQueueView,
       meta: { requiresAuth: true },
     },
   ],

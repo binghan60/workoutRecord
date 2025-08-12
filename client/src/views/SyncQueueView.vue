@@ -22,13 +22,13 @@
               </template>
               <template v-else>
                 <v-row dense>
-                  <v-col cols="12">
+                  <v-col cols="6">
                     <v-btn @click="refreshQueue" color="primary" variant="outlined" block size="small">
                       <v-icon left>mdi-refresh</v-icon>
                       重新整理
                     </v-btn>
                   </v-col>
-                  <v-col cols="12">
+                  <v-col cols="6">
                     <v-btn @click="clearAllQueue" color="error" variant="outlined" :disabled="jobs.length === 0" block size="small">
                       <v-icon left>mdi-delete-sweep</v-icon>
                       清空佇列
@@ -41,58 +41,38 @@
               <v-progress-circular indeterminate color="primary"></v-progress-circular>
               <p class="mt-4">載入中...</p>
             </div>
-            
+
             <div v-else-if="jobs.length === 0" class="text-center py-8">
               <v-icon size="64" color="success" class="mb-4">mdi-check-circle</v-icon>
               <p class="text-h6 mb-2">佇列為空</p>
               <p class="text-body-2 text-medium-emphasis">目前沒有待同步的項目</p>
             </div>
-            
+
             <div v-else>
-              <v-alert type="info" class="mb-4">
-                目前有 {{ jobs.length }} 個待同步項目。這些項目會在網路連線時自動同步。
-              </v-alert>
-              
-              <v-data-table
-                :headers="headers"
-                :items="jobs"
-                class="elevation-1"
-                :items-per-page="10"
-              >
+              <v-alert type="info" class="mb-4"> 目前有 {{ jobs.length }} 個待同步項目。這些項目會在網路連線時自動同步。 </v-alert>
+
+              <v-data-table :headers="headers" :items="jobs" class="elevation-1" :items-per-page="10">
                 <template v-slot:item.action="{ item }">
                   <v-chip :color="getActionColor(item.action)" size="small" label>
                     {{ getActionText(item.action) }}
                   </v-chip>
                 </template>
-                
+
                 <template v-slot:item.endpoint="{ item }">
                   <code class="text-body-2">{{ item.endpoint }}</code>
                 </template>
-                
+
                 <template v-slot:item.timestamp="{ item }">
                   {{ formatTimestamp(item.timestamp) }}
                 </template>
-                
+
                 <template v-slot:item.payload="{ item }">
-                  <v-btn 
-                    @click="showPayload(item)" 
-                    size="small" 
-                    variant="outlined"
-                    v-if="item.payload"
-                  >
-                    查看內容
-                  </v-btn>
+                  <v-btn @click="showPayload(item)" size="small" variant="outlined" v-if="item.payload"> 查看內容 </v-btn>
                   <span v-else class="text-medium-emphasis">無</span>
                 </template>
-                
+
                 <template v-slot:item.actions="{ item }">
-                  <v-btn 
-                    @click="deleteJob(item.id)" 
-                    color="error" 
-                    size="small" 
-                    variant="text"
-                    icon
-                  >
+                  <v-btn @click="deleteJob(item.id)" color="error" size="small" variant="text" icon>
                     <v-icon>mdi-delete</v-icon>
                   </v-btn>
                 </template>
@@ -102,7 +82,7 @@
         </v-card>
       </v-col>
     </v-row>
-    
+
     <!-- Payload Dialog -->
     <v-dialog v-model="payloadDialog" max-width="600px">
       <v-card>
@@ -116,9 +96,7 @@
         </v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
-          <v-btn color="blue-darken-1" text @click="payloadDialog = false">
-            關閉
-          </v-btn>
+          <v-btn color="blue-darken-1" text @click="payloadDialog = false"> 關閉 </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -144,24 +122,32 @@ const headers = [
   { title: '端點', key: 'endpoint', width: '200px' },
   { title: '時間', key: 'timestamp', width: '180px' },
   { title: '資料', key: 'payload', width: '100px' },
-  { title: '動作', key: 'actions', width: '80px', sortable: false }
+  { title: '動作', key: 'actions', width: '80px', sortable: false },
 ]
 
 const getActionColor = (action) => {
   switch (action) {
-    case 'add': return 'success'
-    case 'update': return 'warning'
-    case 'delete': return 'error'
-    default: return 'primary'
+    case 'add':
+      return 'success'
+    case 'update':
+      return 'warning'
+    case 'delete':
+      return 'error'
+    default:
+      return 'primary'
   }
 }
 
 const getActionText = (action) => {
   switch (action) {
-    case 'add': return '新增'
-    case 'update': return '更新'
-    case 'delete': return '刪除'
-    default: return action
+    case 'add':
+      return '新增'
+    case 'update':
+      return '更新'
+    case 'delete':
+      return '刪除'
+    default:
+      return action
   }
 }
 
@@ -172,7 +158,7 @@ const formatTimestamp = (timestamp) => {
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit'
+    second: '2-digit',
   })
 }
 
@@ -196,37 +182,29 @@ const showPayload = (item) => {
 }
 
 const deleteJob = async (jobId) => {
-  modalStore.showConfirmation(
-    '確認刪除', 
-    '確定要刪除這個同步項目嗎？此操作無法復原。', 
-    async () => {
-      try {
-        await db.sync_queue.delete(jobId)
-        await refreshQueue()
-        toast.success('同步項目已刪除')
-      } catch (error) {
-        console.error('Failed to delete job:', error)
-        toast.error('刪除失敗')
-      }
+  modalStore.showConfirmation('確認刪除', '確定要刪除這個同步項目嗎？此操作無法復原。', async () => {
+    try {
+      await db.sync_queue.delete(jobId)
+      await refreshQueue()
+      toast.success('同步項目已刪除')
+    } catch (error) {
+      console.error('Failed to delete job:', error)
+      toast.error('刪除失敗')
     }
-  )
+  })
 }
 
 const clearAllQueue = async () => {
-  modalStore.showConfirmation(
-    '確認清空佇列', 
-    `確定要清空所有 ${jobs.value.length} 個同步項目嗎？這將會永久刪除所有待同步的資料，此操作無法復原。`, 
-    async () => {
-      try {
-        await db.sync_queue.clear()
-        await refreshQueue()
-        toast.success('同步佇列已清空')
-      } catch (error) {
-        console.error('Failed to clear queue:', error)
-        toast.error('清空佇列失敗')
-      }
+  modalStore.showConfirmation('確認清空佇列', `確定要清空所有 ${jobs.value.length} 個同步項目嗎？這將會永久刪除所有待同步的資料，此操作無法復原。`, async () => {
+    try {
+      await db.sync_queue.clear()
+      await refreshQueue()
+      toast.success('同步佇列已清空')
+    } catch (error) {
+      console.error('Failed to clear queue:', error)
+      toast.error('清空佇列失敗')
     }
-  )
+  })
 }
 
 onMounted(() => {

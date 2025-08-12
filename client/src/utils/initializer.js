@@ -1,5 +1,6 @@
 // src/utils/initializer.js
 import { useAuthStore } from '@/stores/auth';
+import { db, initializeDB } from '@/utils/db';
 
 let isInitialized = false;
 
@@ -14,6 +15,9 @@ export async function loadInitialData() {
   }
 
   const authStore = useAuthStore();
+
+  // 先確保 IndexedDB 開啟，避免首屏期間有離線更新排隊但 DB 尚未 ready
+  try { await initializeDB() } catch (e) { console.warn('IndexedDB init failed at app init (will retry lazily):', e) }
   
   // The init function now correctly handles auth state and fetches all data.
   await authStore.init();
