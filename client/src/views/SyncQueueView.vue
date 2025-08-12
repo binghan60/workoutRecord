@@ -49,7 +49,11 @@
             </div>
 
             <div v-else>
-              <v-alert type="info" class="mb-4"> 目前有 {{ jobs.length }} 個待同步項目。這些項目會在網路連線時自動同步。 </v-alert>
+              <v-alert type="info" class="mb-4">
+                目前有 {{ jobs.length }} 個待同步項目。這些項目會在網路連線時自動同步。
+                <v-btn size="x-small" variant="text" class="ml-2" @click="refreshQueue">重新整理</v-btn>
+                <v-btn size="x-small" variant="text" class="ml-1" @click="exportJobs">匯出偵錯</v-btn>
+              </v-alert>
 
               <v-data-table :headers="headers" :items="jobs" class="elevation-1" :items-per-page="10">
                 <template v-slot:item.action="{ item }">
@@ -192,6 +196,29 @@ const deleteJob = async (jobId) => {
       toast.error('刪除失敗')
     }
   })
+}
+
+const exportJobs = async () => {
+  try {
+    await initializeDB()
+    const queueJobs = await db.sync_queue.toArray()
+    const payload = {
+      when: new Date().toISOString(),
+      jobs: queueJobs.map(j => ({ id: j.id, action: j.action, endpoint: j.endpoint, offlineId: j.offlineId, timestamp: j.timestamp, payload: j.payload }))
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `sync-queue-${Date.now()}.json`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    console.error('Export jobs failed:', e)
+    toast.error('匯出失敗')
+  }
 }
 
 const clearAllQueue = async () => {

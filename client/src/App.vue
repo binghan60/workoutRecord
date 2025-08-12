@@ -173,7 +173,11 @@ window.addEventListener('rovodev:local-data-changed', (e) => {
     if (detail.table === 'workouts') {
       workoutStore.fetchAllWorkouts()
     } else if (detail.table === 'templates') {
-      templateStore.fetchTemplates()
+      // Avoid immediate refetch on delete to prevent flicker (server may still return item briefly)
+      if (detail.action !== 'delete') {
+        templateStore.fetchTemplates()
+      }
+      // Still refresh schedule mapping as it doesn't reintroduce templates
       templateStore.fetchSchedule()
     } else if (detail.table === 'schedules' || detail.table === 'schedule') {
       templateStore.fetchSchedule()
@@ -207,6 +211,9 @@ const syncIntervalId = ref(null)
 
 // Helper function to update schedule references when offline templates get synced
 const updateScheduleReferences = async (offlineId, newId) => {
+  const debug = localStorage.getItem('debug_sync')
+  const dlog = (...args) => { if (debug === 'true') console.log('[DEBUG][app]', ...args) }
+  dlog('updateScheduleReferences: start', { offlineId, newId })
   try {
     console.log(`Updating schedule references: ${offlineId} -> ${newId}`)
 
@@ -259,7 +266,60 @@ const statusLight = computed(() => {
   return { color: 'light-green-accent-4', text: '連線正常' }
 })
 
+const getServerIdFor = async (maybeOfflineId) => {
+  if (!maybeOfflineId || !(typeof maybeOfflineId === 'string')) return maybeOfflineId
+  if (!maybeOfflineId.startsWith('offline_') && !maybeOfflineId.startsWith('temp_')) return maybeOfflineId
+  try {
+    const map = await db.id_map.get(maybeOfflineId)
+    return map?.serverId || null
+  } catch {
+    return null
+  }
+}
+
+const mapWorkoutPayloadIds = async (payload) => {
+  const userId = authStore.user?._id || 'guest'
+  const cloned = JSON.parse(JSON.stringify(payload))
+  let unresolved = false
+
+  // Map templateId
+  if (cloned.templateId && (cloned.templateId.startsWith('offline_') || cloned.templateId.startsWith('temp_'))) {
+    const mapped = await getServerIdFor(cloned.templateId)
+    if (mapped) cloned.templateId = mapped
+    else delete cloned.templateId // optional on backend
+  }
+
+  // Map exercises[].exerciseId
+  if (Array.isArray(cloned.exercises)) {
+    for (const ex of cloned.exercises) {
+      if (ex.exerciseId && (String(ex.exerciseId).startsWith('offline_') || String(ex.exerciseId).startsWith('temp_'))) {
+        const mapped = await getServerIdFor(ex.exerciseId)
+        if (mapped) {
+          ex.exerciseId = mapped
+        } else {
+          // Fallback by name from local exercises cache
+          try {
+            const byName = await db.exercises.where('name').equals(ex.name).and(item => item.userId === userId).first()
+            if (byName && byName._id && !String(byName._id).startsWith('offline_') && !String(byName._id).startsWith('temp_')) {
+              ex.exerciseId = byName._id
+            } else {
+              unresolved = true
+            }
+          } catch {
+            unresolved = true
+          }
+        }
+      }
+    }
+  }
+
+  return { payload: cloned, unresolved }
+}
+
 const syncQueue = async () => {
+  const debug = localStorage.getItem('debug_sync')
+  const dlog = (...args) => { if (debug === 'true') console.log('[DEBUG][sync]', ...args) }
+  dlog('start')
   if (!navigator.onLine) {
     console.log('❌ Sync skipped: offline')
     return
@@ -278,6 +338,7 @@ const syncQueue = async () => {
     await initializeDB()
 
     const jobs = await db.sync_queue.toArray()
+    dlog('jobs', jobs.map(j => ({ id: j.id, action: j.action, endpoint: j.endpoint, offlineId: j.offlineId })))
     if (jobs.length === 0) {
       console.log('✅ Sync queue is empty - nothing to sync')
       return
@@ -286,7 +347,10 @@ const syncQueue = async () => {
     isSyncing.value = true
     uiStore.setSyncing(true)
     console.log(`🔄 Sync started: ${jobs.length} items to process`)
-    jobs.forEach((job) => console.log(`  - ${job.action} ${job.endpoint}`))
+    jobs.forEach((job) => {
+  console.log(`  - ${job.action} ${job.endpoint}`)
+  dlog('processing job', { id: job.id, action: job.action, endpoint: job.endpoint, offlineId: job.offlineId, payload: job.payload })
+})
 
     // Track affected endpoints to refresh only necessary stores
     let processedCount = 0
@@ -306,16 +370,30 @@ const syncQueue = async () => {
 
         switch (job.action) {
           case 'add': {
-            const res = await apiClient.post(job.endpoint, job.payload)
+            // Map IDs for workouts payload to avoid sending offline_/temp_ ids
+            let payloadToSend = job.payload
+            if (job.endpoint.startsWith('/workouts')) {
+              const mapped = await mapWorkoutPayloadIds(job.payload)
+              payloadToSend = mapped.payload
+            }
+            dlog('POST', job.endpoint, payloadToSend)
+            const res = await apiClient.post(job.endpoint, payloadToSend)
             const saved = res?.data?.data ?? res?.data
             if (table && saved) {
               try {
                 if (job.offlineId) {
                   await db[table].delete(job.offlineId)
 
+                  // Persist ID map for future reference resolution
+                  try {
+                    await db.id_map.put({ offlineId: job.offlineId, serverId: saved._id, type: table, userId: authStore.user?._id || 'guest' })
+                  } catch {}
+
                   // Special handling for templates: update schedule references
                   if (table === 'templates' && job.offlineId && saved._id) {
-                    await updateScheduleReferences(job.offlineId, saved._id)
+                    dlog('template add mapped', { offlineId: job.offlineId, serverId: saved._id, note: 'updating schedule immediately' })
+                    dlog('template add mapped', { offlineId: job.offlineId, serverId: saved._id })
+                      await updateScheduleReferences(job.offlineId, saved._id)
                   }
                 }
                 await db[table].put(saved)
@@ -326,7 +404,13 @@ const syncQueue = async () => {
             break
           }
           case 'update': {
-            const res = await apiClient.put(job.endpoint, job.payload)
+            let payloadToSend = job.payload
+            if (job.endpoint.startsWith('/workouts')) {
+              const mapped = await mapWorkoutPayloadIds(job.payload)
+              payloadToSend = mapped.payload
+            }
+            dlog('PUT', job.endpoint, payloadToSend)
+            const res = await apiClient.put(job.endpoint, payloadToSend)
             const saved = res?.data?.data ?? res?.data
             if (table && saved) {
               try {
@@ -376,32 +460,40 @@ const syncQueue = async () => {
     if (processedCount > 0) {
       const endpoints = Array.from(affected)
       const refreshTasks = []
-      let scheduleNeedsUpdate = false
 
-      if (endpoints.some((e) => e.startsWith('/templates'))) {
-        refreshTasks.push(templateStore.fetchTemplates(true))
-        // If templates were synced, schedule might need updating with new IDs
-        scheduleNeedsUpdate = true
+      const templatesUpdated = endpoints.some((e) => e.startsWith('/templates'))
+      const workoutsUpdated = endpoints.some((e) => e.startsWith('/workouts'))
+      const bodyMetricsUpdated = endpoints.some((e) => e.startsWith('/body-metrics'))
+      const scheduleTouched = endpoints.some((e) => e === '/schedule')
+
+      // IMPORTANT: If templates were updated, first reconcile schedule with new IDs
+      if (templatesUpdated) {
+        console.log('Templates synced - updating schedule with new IDs (before fetching schedule)')
+        try {
+          await templateStore.updateScheduleOnBackend({ waitForServer: true })
+        } catch (e) {
+          console.warn('updateScheduleOnBackend failed:', e)
+        }
       }
-      if (endpoints.some((e) => e.startsWith('/workouts'))) {
+
+      // Now refresh other stores in parallel
+      if (templatesUpdated) {
+        refreshTasks.push(templateStore.fetchTemplates(true))
+      }
+      if (workoutsUpdated) {
         refreshTasks.push(workoutStore.fetchAllWorkouts(true))
       }
-      if (endpoints.some((e) => e.startsWith('/body-metrics'))) {
+      if (bodyMetricsUpdated) {
         refreshTasks.push(bodyMetricsStore.fetchRecords(true))
       }
-      if (endpoints.some((e) => e === '/schedule')) {
+      // Only fetch schedule after we've reconciled it (if needed)
+      if (scheduleTouched || templatesUpdated) {
         refreshTasks.push(templateStore.fetchSchedule(true))
       }
 
       if (refreshTasks.length > 0) {
         await Promise.allSettled(refreshTasks)
         console.log('Soft refresh completed for affected stores:', endpoints)
-      }
-
-      // Final schedule sync if templates were updated
-      if (scheduleNeedsUpdate) {
-        console.log('Templates synced - updating schedule with new IDs')
-        await templateStore.updateScheduleOnBackend()
       }
     } else {
       console.log('Sync finished. No successful changes; skipping refresh.')

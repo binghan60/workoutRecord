@@ -28,7 +28,8 @@ db.version(3).stores({
   templates: '&_id, userId, name',
   schedules: '&_id, userId, date',
   workouts: '&_id, userId, date',
-  bodyMetrics: '&_id, userId, date'
+  bodyMetrics: '&_id, userId, date',
+  id_map: '&offlineId, userId, type, serverId' // map temporary/offline ids to server ids
 });
 
 // The '&' prefix on _id means it's the primary key and must be unique.

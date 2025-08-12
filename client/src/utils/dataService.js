@@ -52,7 +52,8 @@ export class DataService {
         }
 
         await db[this.dbTable].clear();
-        await db[this.dbTable].bulkAdd(data);
+        const dataWithUser = data.map(item => ({ ...item, userId: this.userId || 'guest' }))
+        await db[this.dbTable].bulkAdd(dataWithUser);
         if (offlineItems.length > 0) {
           // Re-add offline items so they stay visible until sync completes
           await db[this.dbTable].bulkPut(offlineItems)

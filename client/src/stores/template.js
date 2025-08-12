@@ -7,6 +7,12 @@ import { db, initializeDB } from '@/utils/db'
 import apiClient from '@/api'
 
 const toast = useToast()
+
+// Debug helper (enable by running: localStorage.setItem('debug_sync', 'true'))
+const __isDebugEnabled = () => {
+  try { return JSON.parse(localStorage.getItem('debug_sync') ?? 'false') } catch { return !!localStorage.getItem('debug_sync') }
+}
+const dlog = (...args) => { if (__isDebugEnabled()) console.log('[DEBUG][template]', ...args) }
 const SCHEDULE_DB_KEY = 'currentUserSchedule' // Use a fixed key for the single schedule object
 
 export const useTemplateStore = defineStore('template', () => {
@@ -26,6 +32,7 @@ export const useTemplateStore = defineStore('template', () => {
   })
 
   async function fetchTemplates() {
+    dlog('fetchTemplates: start', { isGuest: authStore.isGuest, online: navigator.onLine })
     try {
       const data = await templateService.value.fetchAll()
       templates.value = data
@@ -39,6 +46,7 @@ export const useTemplateStore = defineStore('template', () => {
   }
 
   async function addTemplate(templateData) {
+    dlog('addTemplate: called', { templateData, online: navigator.onLine, isGuest: authStore.isGuest })
     try {
       console.log('📋 Creating template with data:', templateData)
       console.log('🌐 Network status:', navigator.onLine ? 'Online' : 'Offline')
@@ -76,12 +84,17 @@ export const useTemplateStore = defineStore('template', () => {
   }
 
   async function deleteTemplate(templateId) {
+    // Optimistic local removal first to avoid flicker
+    const toDelete = templates.value.find(t => t._id === templateId)
+    templates.value = templates.value.filter((t) => t._id !== templateId)
     try {
       console.log('🗑️ Deleting template:', templateId)
       console.log('🌐 Network status:', navigator.onLine ? 'Online' : 'Offline')
       
       const deletedTemplateName = templates.value.find(t => t._id === templateId)?.name || '範本'
       await templateService.value.delete(templateId)
+      // Notify local-data-changed with delete action to prevent refetch flicker
+      try { window.dispatchEvent(new CustomEvent('rovodev:local-data-changed', { detail: { table: 'templates', action: 'delete', id: templateId } })) } catch {}
       templates.value = templates.value.filter((t) => t._id !== templateId)
       
       let scheduleNeedsUpdate = false
@@ -98,6 +111,12 @@ export const useTemplateStore = defineStore('template', () => {
         }
       }
       if(scheduleNeedsUpdate) {
+        // Persist schedule immediately for offline and to make UI consistent
+        try {
+          await initializeDB()
+          const cleanSchedule = JSON.parse(JSON.stringify(schedule.value))
+          await db.schedules.put({ _id: SCHEDULE_DB_KEY, ...cleanSchedule, userId: authStore.user?._id || 'guest' })
+        } catch (e) { console.warn('Failed to persist schedule after template delete:', e) }
         await updateScheduleOnBackend()
       }
 
@@ -117,6 +136,7 @@ export const useTemplateStore = defineStore('template', () => {
   // --- DEDICATED SCHEDULE LOGIC ---
 
   async function fetchSchedule() {
+     dlog('fetchSchedule: start', { isGuest: authStore.isGuest, online: navigator.onLine })
      // Helper: read schedule from IndexedDB using fixed key, with migration fallback
      const readScheduleFromIDB = async () => {
        // Ensure DB ready
@@ -171,6 +191,7 @@ export const useTemplateStore = defineStore('template', () => {
     await initializeDB()
 
     if (navigator.onLine) {
+        dlog('fetchSchedule: online -> fetching /schedule')
         try {
             const response = await apiClient.get('/schedule')
             const scheduleData = response.data.data || response.data || {}
@@ -185,22 +206,89 @@ export const useTemplateStore = defineStore('template', () => {
             schedule.value = localSchedule
         }
     } else {
+        dlog('fetchSchedule: offline -> reading IndexedDB')
         console.log('Offline: Reading schedule from IndexedDB')
         const localSchedule = await readScheduleFromIDB()
         schedule.value = localSchedule
     }
   }
 
-  async function updateScheduleOnBackend() {
-    const idOnlySchedule = {}
-    for (const day in schedule.value) {
-      if (Array.isArray(schedule.value[day])) {
-        // Filter out offline template IDs (they don't exist on server yet)
-        idOnlySchedule[day] = schedule.value[day]
-          .map((template) => template._id || template)
-          .filter((id) => !id.toString().startsWith('offline_') && !id.toString().startsWith('temp_'))
-      }
+  async function updateScheduleOnBackend(options = {}) {
+    const { waitForServer = false } = options
+    dlog('updateScheduleOnBackend: start', { isGuest: authStore.isGuest, online: navigator.onLine })
+
+    // Ensure DB for id_map lookups and local schedule read
+    try { await initializeDB() } catch (e) { dlog('updateScheduleOnBackend: initializeDB error', e) }
+
+    // Snapshot current in-memory schedule
+    try { dlog('updateScheduleOnBackend: store schedule snapshot', JSON.parse(JSON.stringify(schedule.value))) } catch {}
+
+    // Read local cached schedule record (may contain entries not in memory yet)
+    let localRecord = null
+    try {
+      localRecord = await db.schedules.get(SCHEDULE_DB_KEY)
+      try { dlog('updateScheduleOnBackend: local record snapshot', JSON.parse(JSON.stringify(localRecord))) } catch {}
+    } catch (e) {
+      dlog('updateScheduleOnBackend: failed to read local schedule record', e)
     }
+
+    // Helper to map possibly-offline ID to server ID
+    const mapId = async (id) => {
+      if (!id) return null
+      const s = String(id)
+      if (s.startsWith('offline_') || s.startsWith('temp_')) {
+        try {
+          const map = await db.id_map.get(s)
+          if (map?.serverId) {
+            dlog('updateScheduleOnBackend: id mapped', { from: s, to: map.serverId })
+          } else {
+            dlog('updateScheduleOnBackend: id not mapped yet', s)
+          }
+          return map?.serverId || null
+        } catch (e) {
+          dlog('updateScheduleOnBackend: id_map lookup error', s, e)
+          return null
+        }
+      }
+      return s
+    }
+
+    // Merge day keys from in-memory and local record
+    const keysFrom = (obj) => Object.keys(obj || {}).filter(k => !['_id','userId','remoteId','createdAt','updatedAt'].includes(k))
+    const days = Array.from(new Set([...keysFrom(schedule.value), ...keysFrom(localRecord)]))
+    dlog('updateScheduleOnBackend: days to process', days)
+
+    const collect = (arr) => {
+      const out = []
+      if (!Array.isArray(arr)) return out
+      for (const entry of arr) {
+        out.push(typeof entry === 'object' ? entry._id : entry)
+      }
+      return out
+    }
+
+    const idOnlySchedule = {}
+    const unresolvedByDay = {}
+
+    for (const day of days) {
+      const storeIds = collect(schedule.value?.[day])
+      const localIds = collect(localRecord?.[day])
+      const combined = [...storeIds, ...localIds]
+      const mappedIds = []
+      for (const id of combined) {
+        const mapped = await mapId(id)
+        if (mapped && !mapped.toString().startsWith('offline_') && !mapped.toString().startsWith('temp_')) {
+          if (!mappedIds.includes(mapped)) mappedIds.push(mapped)
+        } else if (!mapped) {
+          if (!unresolvedByDay[day]) unresolvedByDay[day] = []
+          if (!unresolvedByDay[day].includes(id)) unresolvedByDay[day].push(id)
+        }
+      }
+      if (mappedIds.length > 0) idOnlySchedule[day] = mappedIds
+      dlog('updateScheduleOnBackend: day result', { day, storeIds, localIds, combined, mappedIds, unresolved: unresolvedByDay[day] || [] })
+    }
+
+    dlog('updateScheduleOnBackend: final payload', idOnlySchedule)
 
     if (authStore.isGuest) {
       localStorage.setItem('guest_schedule', JSON.stringify(idOnlySchedule))
@@ -208,13 +296,14 @@ export const useTemplateStore = defineStore('template', () => {
       return
     }
 
-    // 確保資料庫已初始化
-    await initializeDB()
-
-    // Deep-clone to ensure we store plain serializable objects (avoid Vue proxies)
-    const cleanSchedule = JSON.parse(JSON.stringify(schedule.value))
-    const scheduleToSave = { _id: SCHEDULE_DB_KEY, ...cleanSchedule, userId: authStore.user?._id || 'guest' }
-    await db.schedules.put(scheduleToSave) // Optimistic update to local DB
+    // Optimistic save of current schedule state (unmapped entries remain locally)
+    try {
+      const cleanSchedule = JSON.parse(JSON.stringify(schedule.value))
+      const scheduleToSave = { _id: SCHEDULE_DB_KEY, ...cleanSchedule, userId: authStore.user?._id || 'guest' }
+      await db.schedules.put(scheduleToSave)
+    } catch (e) {
+      dlog('updateScheduleOnBackend: failed to persist local schedule snapshot', e)
+    }
 
     if (!navigator.onLine) {
         console.log("🔌 Offline: Queuing schedule update for endpoint: /schedule")
@@ -238,12 +327,12 @@ export const useTemplateStore = defineStore('template', () => {
     }
 
     // Online: background sync for better UX
-    apiClient.put('/schedule', idOnlySchedule, { headers: { 'X-Background-Sync': 'true' } })
+    const putPromise = apiClient.put('/schedule', idOnlySchedule, { headers: { 'X-Background-Sync': 'true' } })
       .then(async (response) => {
         const updatedScheduleData = response.data.data || response.data
         const { _id: remoteId, ...scheduleFields } = updatedScheduleData
         await db.schedules.put({ _id: SCHEDULE_DB_KEY, ...scheduleFields, remoteId })
-        // 若需要，可選擇同步 store：schedule.value = scheduleFields
+        dlog('updateScheduleOnBackend: server updated OK, cached', { remoteId })
       })
       .catch(async (error) => {
         console.error('❌ Failed to update schedule online, queuing for retry:', error)
@@ -263,6 +352,20 @@ export const useTemplateStore = defineStore('template', () => {
           console.error('❌ Failed to enqueue schedule update:', e)
         }
       })
+
+    if (waitForServer) {
+      try {
+        const res = await putPromise
+        const updatedScheduleData = res.data.data || res.data
+        const { _id: remoteId, ...scheduleFields } = updatedScheduleData
+        schedule.value = scheduleFields
+        try {
+          await db.schedules.put({ _id: SCHEDULE_DB_KEY, ...scheduleFields, remoteId, userId: authStore.user?._id || 'guest' })
+        } catch {}
+      } catch (e) {
+        console.warn('waitForServer: schedule update failed, UI will stay optimistic', e)
+      }
+    }
   }
 
   // --- END DEDICATED SCHEDULE LOGIC ---
@@ -338,6 +441,7 @@ export const useTemplateStore = defineStore('template', () => {
     updateTemplate,
     deleteTemplate,
     fetchSchedule,
+    updateScheduleOnBackend,
     addTemplateToSchedule,
     removeTemplateFromSchedule,
     updateScheduleOrder,
