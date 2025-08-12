@@ -194,9 +194,14 @@ export class DataService {
     apiClient.post(this.apiEndpoint, data, { headers: { 'X-Background-Sync': 'true' } })
       .then(async (response) => {
         const savedData = response.data.data || response.data
-        await db[this.dbTable].put(savedData)
+        const normalized = JSON.parse(JSON.stringify(savedData))
+        if (Array.isArray(normalized)) {
+          await db[this.dbTable].bulkPut(normalized)
+        } else {
+          await db[this.dbTable].put(normalized)
+        }
         // Optionally clean up temp item if ids differ
-        if (optimisticItem._id !== savedData._id) {
+        if (!Array.isArray(normalized) && optimisticItem._id !== normalized._id) {
           await db[this.dbTable].delete(optimisticItem._id)
         }
       })
@@ -216,7 +221,9 @@ export class DataService {
       let guestData = JSON.parse(localStorage.getItem(this.storageKey)) || [];
       const index = guestData.findIndex((item) => item._id === id);
       if (index !== -1) {
-        guestData[index] = { ...guestData[index], ...data, updatedAt: new Date().toISOString() };
+        // 深度拷貝以避免存入非序列化數據
+        const cleanData = JSON.parse(JSON.stringify(data))
+        guestData[index] = { ...guestData[index], ...cleanData, updatedAt: new Date().toISOString() };
         localStorage.setItem(this.storageKey, JSON.stringify(guestData));
         return guestData[index];
       }
@@ -226,29 +233,38 @@ export class DataService {
     // 確保資料庫已初始化
     await initializeDB();
 
+    // 先將資料轉為可序列化的純物件（避免 Vue Proxy / 循環參照）
+    const cleanData = JSON.parse(JSON.stringify(data))
+    cleanData.updatedAt = new Date().toISOString()
+
     if (!navigator.onLine) {
       // Optimistic local update + queue background sync
       console.log('Offline: Queuing UPDATE operation.');
-      const job = { action: 'update', endpoint: `${this.apiEndpoint}/${id}`, payload: data, timestamp: new Date().toISOString() };
+      const job = { action: 'update', endpoint: `${this.apiEndpoint}/${id}`, payload: cleanData, timestamp: new Date().toISOString() };
       await db.sync_queue.add(job);
-      await db[this.dbTable].update(id, data);
-      return { ...data, _id: id, isOffline: true };
+      await db[this.dbTable].update(id, cleanData);
+      return { ...cleanData, _id: id, isOffline: true };
     }
 
     // Online: optimistic local update + background request
-    await db[this.dbTable].update(id, data)
+    await db[this.dbTable].update(id, cleanData)
     try { window.dispatchEvent(new CustomEvent('rovodev:local-data-changed', { detail: { table: this.dbTable, action: 'update', id } })) } catch {}
-    apiClient.put(`${this.apiEndpoint}/${id}`, data, { headers: { 'X-Background-Sync': 'true' } })
+    apiClient.put(`${this.apiEndpoint}/${id}`, cleanData, { headers: { 'X-Background-Sync': 'true' } })
       .then(async (response) => {
         const savedData = response.data.data || response.data
-        await db[this.dbTable].put(savedData)
+        const normalized = JSON.parse(JSON.stringify(savedData))
+        if (Array.isArray(normalized)) {
+          await db[this.dbTable].bulkPut(normalized)
+        } else {
+          await db[this.dbTable].put(normalized)
+        }
       })
       .catch(async (error) => {
         console.error('Background update failed, queuing for retry:', error)
-        const job = { action: 'update', endpoint: `${this.apiEndpoint}/${id}`, payload: data, timestamp: new Date().toISOString() };
+        const job = { action: 'update', endpoint: `${this.apiEndpoint}/${id}`, payload: cleanData, timestamp: new Date().toISOString() };
         await db.sync_queue.add(job)
       })
-    return { ...data, _id: id, isOptimistic: true }
+    return { ...cleanData, _id: id, isOptimistic: true }
   }
 
   /**
