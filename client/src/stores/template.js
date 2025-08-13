@@ -273,7 +273,15 @@ export const useTemplateStore = defineStore('template', () => {
     for (const day of days) {
       const storeIds = collect(schedule.value?.[day])
       const localIds = collect(localRecord?.[day])
-      const combined = [...storeIds, ...localIds]
+      // Base on in-memory store (source of truth). Only consider localRecord entries
+      // that represent unsynced offline/temp IDs to avoid resurrecting removed items.
+      const combined = [...storeIds]
+      for (const lid of localIds) {
+        const s = String(lid)
+        if ((s.startsWith('offline_') || s.startsWith('temp_')) && !combined.includes(lid)) {
+          combined.push(lid)
+        }
+      }
       const mappedIds = []
       for (const id of combined) {
         const mapped = await mapId(id)
@@ -284,7 +292,8 @@ export const useTemplateStore = defineStore('template', () => {
           if (!unresolvedByDay[day].includes(id)) unresolvedByDay[day].push(id)
         }
       }
-      if (mappedIds.length > 0) idOnlySchedule[day] = mappedIds
+      // Always include the day, even if empty, so backend can clear removed entries
+      idOnlySchedule[day] = mappedIds
       dlog('updateScheduleOnBackend: day result', { day, storeIds, localIds, combined, mappedIds, unresolved: unresolvedByDay[day] || [] })
     }
 
