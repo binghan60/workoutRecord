@@ -5,6 +5,9 @@
 import apiClient from '@/api';
 import { db, initializeDB } from './db'; // Import our IndexedDB service
 
+// 用於處理樂觀創建和快速刪除之間的競爭條件
+const pendingDeletes = new Set();
+
 export class DataService {
   constructor(options = {}) {
     this.isGuest = options.isGuest || false;
@@ -36,6 +39,25 @@ export class DataService {
 
         const data = response.data.data || response.data;
 
+        // Filter out items that are pending deletion locally to prevent resurrection after refresh
+        let filteredData = data;
+        try {
+          const deleteJobs = await db.sync_queue.where('action').equals('delete').toArray();
+          if (deleteJobs && deleteJobs.length) {
+            const idsToRemove = new Set(
+              deleteJobs
+                .filter(j => (j.endpoint || '').startsWith(`${this.apiEndpoint}/`))
+                .map(j => (j.endpoint || '').split('/').pop())
+            );
+            if (idsToRemove.size > 0) {
+              filteredData = data.filter(item => !idsToRemove.has(item._id));
+              console.log(`[FETCH] Filtered out ${data.length - filteredData.length} pending-deleted item(s) from ${this.dbTable}.`);
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to filter pending deletions from fetchAll:', e);
+        }
+
         if (!Array.isArray(data)) {
           console.error(`Data for ${this.dbTable} is not an array!`, data);
           return await db[this.dbTable].toArray();
@@ -52,17 +74,17 @@ export class DataService {
         }
 
         await db[this.dbTable].clear();
-        const dataWithUser = data.map(item => ({ ...item, userId: this.userId || 'guest' }))
+        const dataWithUser = filteredData.map(item => ({ ...item, userId: this.userId || 'guest' }))
         await db[this.dbTable].bulkAdd(dataWithUser);
         if (offlineItems.length > 0) {
           // Re-add offline items so they stay visible until sync completes
           await db[this.dbTable].bulkPut(offlineItems)
           console.log(`Preserved ${offlineItems.length} offline item(s) in "${this.dbTable}".`)
         }
-        console.log(`Cached ${data.length} items to IndexedDB table "${this.dbTable}".`);
+        console.log(`Cached ${filteredData.length} items to IndexedDB table "${this.dbTable}".`);
 
         // Return combined view so UI shows offline items too
-        return [...data, ...offlineItems];
+        return [...filteredData, ...offlineItems];
       } catch (error) {
         console.error(`API fetch for ${this.dbTable} failed, falling back to local data.`, error);
         return await db[this.dbTable].where('userId').equals(this.userId || 'guest').toArray();
@@ -198,14 +220,54 @@ export class DataService {
       .then(async (response) => {
         const savedData = response.data.data || response.data
         const normalized = JSON.parse(JSON.stringify(savedData))
+        const tempId = optimisticItem._id;
+
+        // --- DEBUG LOGGING START ---
+        console.log(`[ADD.THEN] POST success for ${this.apiEndpoint}. Temp ID: ${tempId}, Real ID: ${normalized._id}`);
+        console.log(`[ADD.THEN] Current pendingDeletes set:`, JSON.stringify(Array.from(pendingDeletes)));
+        console.log(`[ADD.THEN] Checking if pendingDeletes has tempId "${tempId}":`, pendingDeletes.has(tempId));
+        // --- DEBUG LOGGING END ---
+
+        // **RACE CONDITION FIX**: Check if this item was deleted while it was being created
+        // Persist ID mapping for this optimistic temp item -> real server ID
+        try {
+          await db.id_map.put({
+            offlineId: tempId,
+            userId: this.userId || 'guest',
+            type: this.dbTable,
+            serverId: normalized._id
+          })
+        } catch (e) {
+          console.warn('Failed to save id_map mapping:', e)
+        }
+
+        if (pendingDeletes.has(tempId)) {
+          console.log(`[FIX] Item ${normalized._id} (formerly ${tempId}) was deleted before creation confirmed. Deleting from server now.`);
+          // Use the REAL ID to delete from the server
+          try {
+            await apiClient.delete(`${this.apiEndpoint}/${normalized._id}`);
+          } catch (e) {
+            console.warn('Server delete on race-fix failed, queuing job:', e)
+            try {
+              await db.sync_queue.add({ action: 'delete', endpoint: `${this.apiEndpoint}/${normalized._id}`, timestamp: new Date().toISOString() })
+            } catch {}
+          }
+          try { await db[this.dbTable].delete(normalized._id) } catch {}
+          pendingDeletes.delete(tempId); // Clean up the set
+          try { await db.id_map.delete(tempId) } catch {}
+          return;
+        }
+        
+        console.log(`[ADD.THEN] Item was not in pendingDeletes. Proceeding with local DB update.`);
+
         if (Array.isArray(normalized)) {
           await db[this.dbTable].bulkPut(normalized)
         } else {
           await db[this.dbTable].put({ ...normalized, userId: this.userId || 'guest' })
         }
         // Optionally clean up temp item if ids differ
-        if (!Array.isArray(normalized) && optimisticItem._id !== normalized._id) {
-          await db[this.dbTable].delete(optimisticItem._id)
+        if (!Array.isArray(normalized) && tempId !== normalized._id) {
+          await db[this.dbTable].delete(tempId)
         }
       })
       .catch(async (error) => {
@@ -310,72 +372,63 @@ export class DataService {
     // 確保資料庫已初始化
     await initializeDB();
 
-    // 如果是離線創建的項目，或是臨時(temp_)樂觀項目，直接從本地刪除，無需同步
-    if (id.toString().startsWith('offline_') || id.toString().startsWith('temp_')) {
+    // **RACE CONDITION FIX**: Handle optimistic 'temp_' items
+    if (id.toString().startsWith('temp_')) {
+      console.log(`[FIX] Deleting a temporary optimistic item (${id}). It will be fully deleted after server confirmation if already created on server.`);
+      // Delete locally first (temp record)
+      try { await db[this.dbTable].delete(id) } catch {}
+      pendingDeletes.add(id)
+
+      // Try to resolve real server ID from id_map immediately (covers case where add already finished)
+      try {
+        const mapping = await db.id_map.get(id)
+        if (mapping && mapping.serverId) {
+          const serverId = mapping.serverId
+          console.log(`[FIX] Found serverId ${serverId} for temp ${id}. Proceeding to delete on server or queue.`)
+          if (!navigator.onLine) {
+            // Queue delete job for later
+            await db.sync_queue.add({ action: 'delete', endpoint: `${this.apiEndpoint}/${serverId}`, timestamp: new Date().toISOString() })
+            try { window.dispatchEvent(new CustomEvent('rovodev:sync-queue-changed')) } catch {}
+          } else {
+            try {
+              await apiClient.delete(`${this.apiEndpoint}/${serverId}`)
+              console.log(`✅ Server item ${serverId} deleted (mapped from ${id})`)
+            } catch (e) {
+              console.warn('Server delete for mapped temp failed, queuing:', e)
+              try { await db.sync_queue.add({ action: 'delete', endpoint: `${this.apiEndpoint}/${serverId}`, timestamp: new Date().toISOString() }) } catch {}
+              try { window.dispatchEvent(new CustomEvent('rovodev:sync-queue-changed')) } catch {}
+            }
+          }
+          // Also remove the real item locally if present
+          try { await db[this.dbTable].delete(serverId) } catch {}
+          // Clean up mapping and pending mark
+          try { await db.id_map.delete(id) } catch {}
+          pendingDeletes.delete(id)
+        }
+      } catch (e) {
+        console.warn('Error checking id_map for temp delete:', e)
+      }
+      return true;
+    }
+
+    // 如果是離線創建的項目，直接從本地刪除，並清理同步佇列
+    if (id.toString().startsWith('offline_')) {
       console.log('🔌 Deleting offline-created item - no server sync needed');
       
-      // 1. 從本地資料庫刪除
       await db[this.dbTable].delete(id);
       console.log(`✅ Deleted offline item from local ${this.dbTable}: ${id}`);
       
-      // 2. 清理同步佇列中的相關任務
       try {
-        console.log('🧹 Cleaning ALL sync queue jobs for this endpoint to prevent conflicts');
-        
-        // 查找所有相關端點的任務（例如 /templates 的 add 任務）以及針對特定資源的任務（例如 /templates/{id} 的 update/delete 任務）
-        const allJobs = await db.sync_queue.where('endpoint').equals(this.apiEndpoint).toArray();
-        const directJobs = await db.sync_queue.where('endpoint').equals(`${this.apiEndpoint}/${id}`).toArray();
-        const jobs = [...allJobs, ...directJobs]
-        console.log(`📋 Found ${jobs.length} related jobs for endpoint ${this.apiEndpoint} and item ${id}`);
-        
-        let removedCount = 0;
-        
-        // 清理所有與此項目相關的任務
-        for (const job of jobs) {
-          let shouldRemove = false;
-          
-          // 精確匹配：使用 offlineId（支援 offline_/temp_）
-          if (job.offlineId === id) {
-            shouldRemove = true;
-            console.log(`🎯 Found exact match by offlineId: ${job.id}`);
-          }
-          
-          // 如果是最近創建的 ADD 任務（可能是同一個項目）
-          else if (job.action === 'add' && job.payload) {
-            const jobTime = new Date(job.timestamp).getTime();
-            const base = id.startsWith('offline_') ? 'offline_' : (id.startsWith('temp_') ? 'temp_' : null)
-            if (base) {
-              const itemTime = parseInt(id.replace(base, ''));
-              const timeDiff = Math.abs(jobTime - itemTime);
-              // 10 秒內的 ADD 任務很可能是同一個項目
-              if (!isNaN(itemTime) && timeDiff < 10000) {
-                shouldRemove = true;
-                console.log(`⏰ Found time-matched ADD job: ${job.id} (${timeDiff}ms diff)`);
-              }
-            }
-          }
-          
-          // 針對同一資源的 update/delete 任務
-          if (!shouldRemove && job.endpoint === `${this.apiEndpoint}/${id}`) {
-            shouldRemove = true
-            console.log(`🧩 Found direct endpoint job to remove: ${job.id} -> ${job.endpoint}`)
-          }
-          
-          if (shouldRemove) {
-            await db.sync_queue.delete(job.id);
-            removedCount++;
-            console.log(`🗑️ Removed sync job: ${job.id} (${job.action})`);
-          }
+        // 精確查找並刪除對應的 'add' 任務
+        const jobToDelete = await db.sync_queue.where({ offlineId: id, action: 'add' }).first();
+        if (jobToDelete) {
+          await db.sync_queue.delete(jobToDelete.id);
+          console.log(`✅ Cleaned corresponding 'add' job from sync queue: ${jobToDelete.id}`);
         }
-        
-        console.log(`✅ Cleaned ${removedCount} sync jobs to prevent server conflicts`);
-        
       } catch (error) {
-        console.error('❌ Failed to clean sync queue:', error);
-        // 繼續執行，不影響主要功能
+        console.error('❌ Failed to clean sync queue for offline item:', error);
       }
       
-      // 通知 UI 佇列數量已變更
       try { window.dispatchEvent(new CustomEvent('rovodev:sync-queue-changed')) } catch {}
       return true;
     }
