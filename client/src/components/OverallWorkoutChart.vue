@@ -89,7 +89,7 @@ const updateChart = async () => {
 
 // --- Watchers ---
 watch(
-  () => [workoutStore.workouts, highchartsTheme.value],
+  () => [workoutStore.allWorkouts, highchartsTheme.value],
   () => {
     updateChart()
   },

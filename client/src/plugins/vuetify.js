@@ -9,28 +9,59 @@ import { createVuetify } from 'vuetify'
 
 // https://vuetifyjs.com/en/introduction/why-vuetify/#feature-guides
 export default createVuetify({
+  defaults: {
+    VBtn: {
+      color: 'primary',
+      rounded: 'pill',
+      elevation: 2,
+      variant: 'flat',
+      density: 'comfortable'
+    },
+    VCard: {
+      elevation: 2,
+      rounded: 'lg'
+    },
+    VTextField: {
+      variant: 'outlined',
+      density: 'comfortable',
+      color: 'primary'
+    },
+    VSelect: {
+      variant: 'outlined',
+      density: 'comfortable',
+      color: 'primary'
+    },
+    VTabs: {
+      color: 'primary',
+      density: 'comfortable'
+    },
+    VChip: {
+      color: 'secondary',
+      variant: 'tonal'
+    }
+  },
   theme: {
     themes: {
       light: {
         dark: false,
         colors: {
-          primary: '#4DB6AC', // Soft Teal
-          secondary: '#FFCC80', // Soft Orange/Sand
-          background: '#F5F5F5', // Light Grey
+          primary: '#33A3FF', // Cool Blue
+          secondary: '#FF9E6E', // Warm Orange-Peach
+          background: '#F6F9FC', // Soft Light
           surface: '#FFFFFF', // White
-          'on-background': '#212121',
-          'on-surface': '#212121',
+          'on-background': '#1F2937',
+          'on-surface': '#1F2937',
         },
       },
       dark: {
         dark: true,
         colors: {
-          primary: '#4DB6AC', // Soft Teal
-          secondary: '#FFCC80', // Soft Orange/Sand
-          background: '#121212', // Standard Material Dark
-          surface: '#1E1E1E', // Slightly Lighter Dark
-          'on-background': '#FFFFFF',
-          'on-surface': '#FFFFFF',
+          primary: '#33A3FF', // Cool Blue
+          secondary: '#FF9E6E', // Warm Orange-Peach
+          background: '#0F151B', // Deep Ink
+          surface: '#171E26', // Dark Surface
+          'on-background': '#F3F4F6',
+          'on-surface': '#F3F4F6',
         },
       },
     },

@@ -1,5 +1,8 @@
 @import 'tailwindcss';
 @import './animations.css';
+@import './design-tokens.css';
+@import './tabs.css';
+@import './layout.css';
 
 html {
   overflow-y: scroll;

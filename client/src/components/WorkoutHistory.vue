@@ -26,7 +26,7 @@
             <v-expansion-panels v-model="expandedPanels[workout._id]" multiple>
               <v-expansion-panel v-for="(exercise, index) in workout.exercises" :key="index">
                 <v-expansion-panel-title>
-                  <v-btn variant="text" class="pa-0" @click.stop="showChartModal(exercise.name)">
+                  <v-btn variant="text" :elevation="0" class="pa-0 no-shadow" @click.stop="showChartModal(exercise.name)">
                     {{ exercise.name }}
                   </v-btn>
                   <v-tooltip text="點擊動作名稱以查看詳細圖表" location="top">

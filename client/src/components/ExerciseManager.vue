@@ -150,31 +150,16 @@ const confirmDeleteExercise = (exercise) => {
 
 <style scoped>
 .group-title {
-  background-color: hsla(174, 42%, 51%, 0.15);
+  background-color: rgba(var(--v-theme-primary), 0.12);
   font-weight: bold;
 }
 
 .exercise-option:hover {
-  background-color: rgba(77, 182, 172, 0.1);
+  background-color: rgba(var(--v-theme-primary), 0.08);
 }
 
 .exercise-option.selected {
-  border-left: 4px solid rgb(77, 182, 172);
-  background-color: rgba(77, 182, 172, 0.05);
-}
-
-.v-chip.green {
-  background-color: rgba(76, 175, 80, 0.2) !important;
-  color: rgb(56, 142, 60) !important;
-}
-
-.v-chip.blue {
-  background-color: rgba(33, 150, 243, 0.2) !important;
-  color: rgb(30, 136, 229) !important;
-}
-
-.v-chip.grey {
-  background-color: rgba(158, 158, 158, 0.2) !important;
-  color: #757575 !important;
+  border-left: 4px solid rgb(var(--v-theme-primary));
+  background-color: rgba(var(--v-theme-primary), 0.06);
 }
 </style>

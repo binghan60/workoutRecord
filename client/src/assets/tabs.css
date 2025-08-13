@@ -1,0 +1,22 @@
+.v-application .v-tabs.page-tabs {
+  --tabs-bg: var(--color-surface);
+  --tabs-indicator: rgb(var(--v-theme-primary));
+  --tabs-hover: rgba(var(--v-theme-primary), 0.08);
+  --tabs-active: rgba(var(--v-theme-primary), 0.12);
+}
+.v-application .v-tabs.page-tabs,
+.v-application .v-tabs.page-tabs .v-tab {
+  box-shadow: none !important;
+}
+.v-application .v-tabs.page-tabs .v-slide-group__content .v-tab {
+  border-radius: var(--radius-md);
+}
+.v-application .v-tabs.page-tabs .v-tab:hover {
+  background: var(--tabs-hover);
+}
+.v-application .v-tabs.page-tabs .v-tab.v-tab--selected {
+  background: var(--tabs-active);
+}
+.v-application .v-tabs.page-tabs .v-tabs__slider {
+  background: var(--tabs-indicator) !important;
+}

@@ -1,0 +1,27 @@
+/* Global layout density adjustments for small screens */
+
+/* Extra small devices (phones) */
+@media (max-width: 600px) {
+  /* Reduce container side paddings */
+  .v-application .v-container {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+  /* Reduce grid gutters */
+  .v-application .v-row {
+    --v-gutter-x: 8px !important;
+    --v-gutter-y: 8px !important;
+  }
+}
+
+/* Small devices (small tablets/large phones) */
+@media (min-width: 600px) and (max-width: 960px) {
+  .v-application .v-container {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+  .v-application .v-row {
+    --v-gutter-x: 12px !important;
+    --v-gutter-y: 12px !important;
+  }
+}

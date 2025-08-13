@@ -6,7 +6,7 @@
         <!-- 用戶資料區塊 -->
         <div class="user-profile pa-4" v-if="!drawerBehavior.temporary">
           <div class="d-flex align-center">
-            <v-avatar :size="responsiveSizes.avatar" :color="$vuetify.theme.current.dark ? 'surface-variant' : 'primary'" class="mr-3">
+            <v-avatar :size="responsiveSizes.avatar" :color="$vuetify.theme.current.dark ? 'surface-variant' : 'primary'" class="mr-3 no-shadow">
               <span class="font-weight-bold">
                 {{ authStore.user?.username?.charAt(0).toUpperCase() }}
               </span>
@@ -48,7 +48,7 @@
       <!-- 應用程式列 -->
       <v-app-bar app :color="$vuetify.theme.current.dark ? 'surface' : 'primary'" :elevation="mobile ? 2 : 1" class="app-bar">
         <!-- 選單按鈕 -->
-        <v-app-bar-nav-icon @click="drawer = !drawer" :aria-label="drawer ? '關閉選單' : '開啟選單'" />
+        <v-app-bar-nav-icon @click="drawer = !drawer" :aria-label="drawer ? '關閉選單' : '開啟選單'" :elevation="0" :color="$vuetify.theme.current.dark ? 'on-surface' : 'on-primary'" class="no-shadow" />
 
         <!-- 頁面標題與麵包屑 -->
         <div class="d-flex align-center flex-grow-1">
@@ -76,8 +76,8 @@
           <!-- 用戶選單 -->
           <v-menu offset-y>
             <template v-slot:activator="{ props }">
-              <v-btn v-bind="props" :icon="mobile" :size="responsiveSizes.button" aria-label="使用者選單">
-                <v-avatar :size="mobile ? 32 : 36" :color="$vuetify.theme.current.dark ? 'surface-variant' : 'white'">
+              <v-btn v-bind="props" :icon="mobile" :size="responsiveSizes.button" :elevation="0" class="no-shadow" aria-label="使用者選單">
+                <v-avatar :size="mobile ? 32 : 36" :color="$vuetify.theme.current.dark ? 'surface-variant' : 'white'" class="no-shadow">
                   <span :class="{ 'text-primary': !$vuetify.theme.current.dark }" class="font-weight-bold">
                     {{ authStore.user?.username?.charAt(0).toUpperCase() }}
                   </span>
@@ -212,7 +212,9 @@ const syncIntervalId = ref(null)
 // Helper function to update schedule references when offline templates get synced
 const updateScheduleReferences = async (offlineId, newId) => {
   const debug = localStorage.getItem('debug_sync')
-  const dlog = (...args) => { if (debug === 'true') console.log('[DEBUG][app]', ...args) }
+  const dlog = (...args) => {
+    if (debug === 'true') console.log('[DEBUG][app]', ...args)
+  }
   dlog('updateScheduleReferences: start', { offlineId, newId })
   try {
     console.log(`Updating schedule references: ${offlineId} -> ${newId}`)
@@ -299,7 +301,11 @@ const mapWorkoutPayloadIds = async (payload) => {
         } else {
           // Fallback by name from local exercises cache
           try {
-            const byName = await db.exercises.where('name').equals(ex.name).and(item => item.userId === userId).first()
+            const byName = await db.exercises
+              .where('name')
+              .equals(ex.name)
+              .and((item) => item.userId === userId)
+              .first()
             if (byName && byName._id && !String(byName._id).startsWith('offline_') && !String(byName._id).startsWith('temp_')) {
               ex.exerciseId = byName._id
             } else {
@@ -318,7 +324,9 @@ const mapWorkoutPayloadIds = async (payload) => {
 
 const syncQueue = async () => {
   const debug = localStorage.getItem('debug_sync')
-  const dlog = (...args) => { if (debug === 'true') console.log('[DEBUG][sync]', ...args) }
+  const dlog = (...args) => {
+    if (debug === 'true') console.log('[DEBUG][sync]', ...args)
+  }
   dlog('start')
   if (!navigator.onLine) {
     console.log('❌ Sync skipped: offline')
@@ -338,7 +346,10 @@ const syncQueue = async () => {
     await initializeDB()
 
     const jobs = await db.sync_queue.toArray()
-    dlog('jobs', jobs.map(j => ({ id: j.id, action: j.action, endpoint: j.endpoint, offlineId: j.offlineId })))
+    dlog(
+      'jobs',
+      jobs.map((j) => ({ id: j.id, action: j.action, endpoint: j.endpoint, offlineId: j.offlineId })),
+    )
     if (jobs.length === 0) {
       console.log('✅ Sync queue is empty - nothing to sync')
       return
@@ -348,9 +359,9 @@ const syncQueue = async () => {
     uiStore.setSyncing(true)
     console.log(`🔄 Sync started: ${jobs.length} items to process`)
     jobs.forEach((job) => {
-  console.log(`  - ${job.action} ${job.endpoint}`)
-  dlog('processing job', { id: job.id, action: job.action, endpoint: job.endpoint, offlineId: job.offlineId, payload: job.payload })
-})
+      console.log(`  - ${job.action} ${job.endpoint}`)
+      dlog('processing job', { id: job.id, action: job.action, endpoint: job.endpoint, offlineId: job.offlineId, payload: job.payload })
+    })
 
     // Track affected endpoints to refresh only necessary stores
     let processedCount = 0
@@ -393,7 +404,7 @@ const syncQueue = async () => {
                   if (table === 'templates' && job.offlineId && saved._id) {
                     dlog('template add mapped', { offlineId: job.offlineId, serverId: saved._id, note: 'updating schedule immediately' })
                     dlog('template add mapped', { offlineId: job.offlineId, serverId: saved._id })
-                      await updateScheduleReferences(job.offlineId, saved._id)
+                    await updateScheduleReferences(job.offlineId, saved._id)
                   }
                 }
                 await db[table].put(saved)
