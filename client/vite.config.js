@@ -84,12 +84,22 @@ export default defineConfig({
             options: {
               cacheName: 'local-fonts-cache',
               expiration: {
-                maxEntries: 30,
+                maxEntries: 50,
                 maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
               },
               cacheableResponse: {
                 statuses: [0, 200]
               }
+            }
+          },
+          {
+            // Cache MDI font files served from app (from @mdi/font)
+            urlPattern: ({url}) => url.pathname.match(/\/(?:@mdi|mdi)\//) || url.pathname.endsWith('.woff2') || url.pathname.endsWith('.woff'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'mdi-fonts-cache',
+              cacheableResponse: { statuses: [0, 200] },
+              expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 365 }
             }
           },
           {

@@ -12,6 +12,7 @@ import TemplatesView from '../views/TemplatesView.vue'
 import ExercisesView from '../views/ExercisesView.vue'
 import ScheduleView from '../views/ScheduleView.vue'
 import SyncQueueView from '../views/SyncQueueView.vue'
+import GuestDataView from '../views/GuestDataView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -70,6 +71,12 @@ const router = createRouter({
       component: SyncQueueView,
       meta: { requiresAuth: true },
     },
+    {
+      path: '/guest-data',
+      name: 'guest-data',
+      component: GuestDataView,
+      meta: { requiresAuth: true },
+    },
   ],
 })
 
@@ -79,10 +86,11 @@ router.beforeEach(async (to, from, next) => {
 
   const authStore = useAuthStore()
   const isAuthenticated = authStore.isAuthenticated
+  const isRegistered = !!authStore.token && !!authStore.user && !authStore.isGuest
 
   if (to.meta.requiresAuth && !isAuthenticated) {
     next('/login')
-  } else if (to.meta.requiresGuest && isAuthenticated) {
+  } else if (to.meta.requiresGuest && isRegistered) {
     next('/')
   } else {
     next()

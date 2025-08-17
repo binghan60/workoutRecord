@@ -4,6 +4,7 @@ import { useToast } from 'vue-toastification'
 import { useRouter } from 'vue-router'
 import apiClient from '@/api'
 import { db } from '@/utils/db'
+import { migrateGuestDataIfPresent } from '@/utils/guestMigration'
 
 // Import other stores to call their fetch actions
 import { useExerciseStore } from './exercise'
@@ -48,6 +49,36 @@ export const useAuthStore = defineStore('auth', () => {
     const { email, password, rememberMe } = credentials
     const response = await apiClient.post('/users/login', { email, password })
     setAuthData(response.data.data.user, response.data.token)
+
+    // Optional migration only when user explicitly requests via flag
+    try {
+      const shouldMigrate = localStorage.getItem('guest_migration_after_auth') === 'true'
+      if (shouldMigrate) {
+        const result = await migrateGuestDataIfPresent()
+        console.log('[Auth] Guest data migration (login, explicit):', result)
+        localStorage.removeItem('guest_migration_after_auth')
+        if (result?.migrated) {
+          const exerciseStore = useExerciseStore()
+          const templateStore = useTemplateStore()
+          const workoutStore = useWorkoutStore()
+          const bodyMetricsStore = useBodyMetricsStore()
+          try {
+            await Promise.all([
+              exerciseStore.fetchExercises(true),
+              templateStore.fetchTemplates(),
+              templateStore.fetchSchedule(),
+              workoutStore.fetchAllWorkouts(true),
+              bodyMetricsStore.fetchRecords(true),
+            ])
+          } catch (e) {
+            console.warn('Post-migration refresh failed:', e)
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Guest migration (login) failed:', e)
+    }
+
     if (rememberMe) {
       localStorage.setItem('rememberedEmail', email)
     } else {
@@ -60,6 +91,36 @@ export const useAuthStore = defineStore('auth', () => {
   async function register(userInfo) {
     const response = await apiClient.post('/users/register', userInfo)
     setAuthData(response.data.data.user, response.data.token)
+
+    // Optional migration only when user explicitly requests via flag
+    try {
+      const shouldMigrate = localStorage.getItem('guest_migration_after_auth') === 'true'
+      if (shouldMigrate) {
+        const result = await migrateGuestDataIfPresent()
+        console.log('[Auth] Guest data migration (register, explicit):', result)
+        localStorage.removeItem('guest_migration_after_auth')
+        if (result?.migrated) {
+          const exerciseStore = useExerciseStore()
+          const templateStore = useTemplateStore()
+          const workoutStore = useWorkoutStore()
+          const bodyMetricsStore = useBodyMetricsStore()
+          try {
+            await Promise.all([
+              exerciseStore.fetchExercises(true),
+              templateStore.fetchTemplates(),
+              templateStore.fetchSchedule(),
+              workoutStore.fetchAllWorkouts(true),
+              bodyMetricsStore.fetchRecords(true),
+            ])
+          } catch (e) {
+            console.warn('Post-migration refresh failed:', e)
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Guest migration (register) failed:', e)
+    }
+
     toast.success(`註冊成功, 歡迎 ${response.data.data.user.username}!`)
     await router.push('/')
     // window.location.reload() // avoid full reload to prevent flicker; router navigation is enough
@@ -103,6 +164,9 @@ export const useAuthStore = defineStore('auth', () => {
       console.log('App initializing: fetching essential data...')
       const exerciseStore = useExerciseStore()
       const templateStore = useTemplateStore()
+
+      // No automatic migration on init anymore; user can migrate manually from Guest Data tab
+
 
       try {
         // Only load essential data on app init - exercises, templates and schedule

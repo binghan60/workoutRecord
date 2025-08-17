@@ -596,15 +596,22 @@ const updateSyncQueueCount = async () => {
   }
 }
 
-const navItems = computed(() => [
-  { title: '開始訓練', icon: 'mdi-dumbbell', to: '/' },
-  { title: '儀表板', icon: 'mdi-view-dashboard', to: '/dashboard' },
-  { title: '歷史紀錄', icon: 'mdi-history', to: '/history' },
-  { title: '動作管理', icon: 'mdi-weight-lifter', to: '/exercises' },
-  { title: '訓練組合', icon: 'mdi-clipboard-list', to: '/templates' },
-  { title: '訓練排程', icon: 'mdi-calendar-month', to: '/schedule' },
-  { title: '同步管理', icon: 'mdi-sync', to: '/sync-queue', badge: syncQueueCount.value || null },
-])
+const navItems = computed(() => {
+  const items = [
+    { title: '開始訓練', icon: 'mdi-dumbbell', to: '/' },
+    { title: '儀表板', icon: 'mdi-view-dashboard', to: '/dashboard' },
+    { title: '歷史紀錄', icon: 'mdi-history', to: '/history' },
+    { title: '動作管理', icon: 'mdi-weight-lifter', to: '/exercises' },
+    { title: '訓練組合', icon: 'mdi-clipboard-list', to: '/templates' },
+    { title: '訓練排程', icon: 'mdi-calendar-month', to: '/schedule' },
+    { title: '同步管理', icon: 'mdi-sync', to: '/sync-queue', badge: syncQueueCount.value || null },
+  ]
+  // 顯示「訪客資料」tab 只在訪客模式
+  if (authStore.isGuest) {
+    items.push({ title: '訪客資料', icon: 'mdi-account-question', to: '/guest-data' })
+  }
+  return items
+})
 
 // 監聽自訂事件，讓 badge 即時刷新
 window.addEventListener('rovodev:sync-queue-changed', () => {
