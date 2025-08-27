@@ -7,13 +7,18 @@
         <div class="user-profile pa-4" v-if="!drawerBehavior.temporary">
           <div class="d-flex align-center">
             <v-avatar :size="responsiveSizes.avatar" :color="$vuetify.theme.current.dark ? 'surface-variant' : 'primary'" class="mr-3 no-shadow">
-              <span class="font-weight-bold">
-                {{ authStore.user?.username?.charAt(0).toUpperCase() }}
-              </span>
+              <template v-if="authStore.user?.picture">
+                <v-img :src="authStore.user.picture" alt="User avatar" cover />
+              </template>
+              <template v-else>
+                <span class="font-weight-bold">
+                  {{ (authStore.user?.displayName || authStore.user?.username)?.charAt(0).toUpperCase() }}
+                </span>
+              </template>
             </v-avatar>
             <div class="flex-grow-1" style="min-width: 0">
               <p class="text-body-1 font-weight-medium mb-0 text-truncate">
-                {{ authStore.user?.username }}
+                {{ authStore.user?.displayName || authStore.user?.username }}
               </p>
               <p class="text-caption text-medium-emphasis mb-0 text-truncate">
                 {{ authStore.user?.email }}
@@ -78,9 +83,14 @@
             <template v-slot:activator="{ props }">
               <v-btn v-bind="props" :icon="mobile" :size="responsiveSizes.button" :elevation="0" class="no-shadow" aria-label="使用者選單">
                 <v-avatar :size="mobile ? 32 : 36" :color="$vuetify.theme.current.dark ? 'surface-variant' : 'white'" class="no-shadow">
-                  <span :class="{ 'text-primary': !$vuetify.theme.current.dark }" class="font-weight-bold">
-                    {{ authStore.user?.username?.charAt(0).toUpperCase() }}
-                  </span>
+                  <template v-if="authStore.user?.picture">
+                    <v-img :src="authStore.user.picture" alt="User avatar" cover />
+                  </template>
+                  <template v-else>
+                    <span :class="{ 'text-primary': !$vuetify.theme.current.dark }" class="font-weight-bold">
+                      {{ (authStore.user?.displayName || authStore.user?.username)?.charAt(0).toUpperCase() }}
+                    </span>
+                  </template>
                 </v-avatar>
               </v-btn>
             </template>
@@ -88,7 +98,7 @@
             <v-list min-width="200">
               <v-list-item>
                 <v-list-item-title class="font-weight-medium">
-                  {{ authStore.user?.username }}
+                  {{ authStore.user?.displayName || authStore.user?.username }}
                 </v-list-item-title>
                 <v-list-item-subtitle>
                   {{ authStore.user?.email }}

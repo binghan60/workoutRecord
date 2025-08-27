@@ -48,9 +48,24 @@
                       </v-list-item>
                     </v-list>
                   </v-card-text>
-                  <v-card-actions>
-                    <v-btn color="primary" variant="tonal" :disabled="!hasAnyData" @click="goRegister">註冊並繼承</v-btn>
-                    <v-btn color="secondary" variant="text" :disabled="!hasAnyData" @click="goLogin">登入並繼承</v-btn>
+                  <v-card-actions class="d-flex flex-wrap align-center gap-3">
+                    <v-menu location="bottom">
+                      <template #activator="{ props }">
+                        <v-btn v-bind="props" color="primary" variant="tonal" :disabled="!hasAnyData">綁定到本地帳號</v-btn>
+                      </template>
+                      <v-list>
+                        <v-list-item @click="goLogin" :disabled="!hasAnyData">
+                          <template #prepend><v-icon>mdi-login</v-icon></template>
+                          <v-list-item-title>使用本地帳號登入</v-list-item-title>
+                        </v-list-item>
+                        <v-list-item @click="goRegister" :disabled="!hasAnyData">
+                          <template #prepend><v-icon>mdi-account-plus</v-icon></template>
+                          <v-list-item-title>註冊新帳號</v-list-item-title>
+                        </v-list-item>
+                      </v-list>
+                    </v-menu>
+                    <div class="text-medium-emphasis">或</div>
+                    <div id="googleBindBtn"></div>
                   </v-card-actions>
                 </v-card>
 
@@ -136,8 +151,8 @@
                     </v-expansion-panels>
                   </v-card-text>
                   <v-divider />
-                  <v-card-actions>
-                    <v-btn color="primary" :disabled="!hasAnyData" @click="startMigrationFlow">註冊/登入後手動繼承</v-btn>
+                  <v-card-actions class="d-flex flex-wrap gap-2">
+                    <div id="googleBindBtn"></div>
                   </v-card-actions>
                 </v-card>
               </v-col>
@@ -150,11 +165,13 @@
 </template>
 
 <script setup>
-import { computed, reactive } from 'vue'
+import { computed, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import AuthLayout from './AuthLayout.vue'
 
 const router = useRouter()
+const authStore = useAuthStore()
 
 const KEYS = {
   exercises: 'guest_exercises',
@@ -223,6 +240,61 @@ function startMigrationFlow() {
   router.push('/register')
 }
 
+function loadGoogleScript() {
+  return new Promise((resolve, reject) => {
+    if (window.google && window.google.accounts && window.google.accounts.id) return resolve()
+    const script = document.createElement('script')
+    script.src = 'https://accounts.google.com/gsi/client'
+    script.async = true
+    script.defer = true
+    script.onload = () => resolve()
+    script.onerror = () => reject(new Error('Failed to load Google Identity script'))
+    document.head.appendChild(script)
+  })
+}
+
+onMounted(async () => {
+  try {
+    await loadGoogleScript()
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
+    if (!clientId) {
+      console.warn('VITE_GOOGLE_CLIENT_ID not set. Google Bind button will not render.')
+      return
+    }
+
+    // 初始化 GIS
+    window.google.accounts.id.initialize({
+      client_id: clientId,
+      callback: async (response) => {
+        try {
+          const idToken = response.credential
+          if (!idToken) return
+          // 設定遷移旗標後再登入
+          localStorage.setItem('guest_migration_after_auth', 'true')
+          await authStore.loginWithGoogle(idToken)
+        } catch (err) {
+          console.error('Google bind failed:', err)
+        }
+      },
+      auto_select: false,
+      context: 'signin',
+      ux_mode: 'popup',
+    })
+
+    // 渲染「以 Google 綁定」按鈕
+    window.google.accounts.id.renderButton(document.getElementById('googleBindBtn'), {
+      theme: 'outline',
+      size: 'large',
+      shape: 'rectangular',
+      width: 320,
+      text: 'continue_with',
+      logo_alignment: 'left',
+    })
+  } catch (e) {
+    console.warn('Google Identity init failed (guest bind):', e)
+  }
+})
+
 function clearGuestData() {
   if (!confirm('確定要清除所有訪客資料嗎？此操作無法復原。')) return
   for (const key of Object.values(KEYS)) localStorage.removeItem(key)
@@ -241,3 +313,16 @@ const formatDate = (d) => {
   return dt.toLocaleString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 </script>
+
+<style scoped>
+.google-btn-wrapper {
+  display: inline-flex;
+  align-items: center;
+  height: 36px; /* match default v-btn height for size=default */
+}
+
+/* Ensure the rendered Google button aligns visually with Vuetify buttons */
+.google-btn-wrapper > div {
+  display: inline-block;
+}
+</style>

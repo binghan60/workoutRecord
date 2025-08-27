@@ -14,18 +14,7 @@
     <!-- Active Workout Interface -->
     <div v-else>
       <!-- Enhanced Rest Timer -->
-      <EnhancedRestTimer
-          :is-resting="isResting"
-          :rest-time-remaining="restTimeRemaining"
-          :initial-rest-time="initialRestTime"
-          :current-exercise-name="currentExercise?.name || '訓練動作'"
-          :next-exercise="nextSetInfo?.exercise || null"
-          :next-exercise-hint="nextSetInfo?.hint || ''"
-          @add-rest-time="addRestTime"
-          @stop-rest-timer="stopRestTimer"
-          @reset-rest-timer="resetRestTimer"
-          @pause-rest-timer="pauseRestTimer"
-        />
+      <EnhancedRestTimer :is-resting="isResting" :rest-time-remaining="restTimeRemaining" :initial-rest-time="initialRestTime" :current-exercise-name="currentExercise?.name || '訓練動作'" :next-exercise="nextSetInfo?.exercise || null" :next-exercise-hint="nextSetInfo?.hint || ''" @add-rest-time="addRestTime" @stop-rest-timer="stopRestTimer" @reset-rest-timer="resetRestTimer" @pause-rest-timer="pauseRestTimer" />
 
       <Form ref="formRef" @submit="confirmSubmission" :initial-values="getInitialValues">
         <Field name="workoutName" type="hidden" />
@@ -111,7 +100,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted, watch, nextTick, onMounted, defineExpose } from 'vue'
+import { ref, computed, onUnmounted, watch, nextTick, onMounted } from 'vue'
 import { useTemplateStore } from '@/stores/template'
 import { useWorkoutStore } from '@/stores/workout'
 import { useExerciseStore } from '@/stores/exercise'

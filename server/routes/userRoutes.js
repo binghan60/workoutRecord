@@ -6,6 +6,7 @@ const router = express.Router()
 
 router.post('/register', userController.register)
 router.post('/login', userController.login)
+router.post('/google', userController.googleLogin)
 
 // Protect all routes after this middleware
 router.use(authMiddleware)

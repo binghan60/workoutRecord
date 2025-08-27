@@ -63,13 +63,7 @@ export const useAuthStore = defineStore('auth', () => {
           const workoutStore = useWorkoutStore()
           const bodyMetricsStore = useBodyMetricsStore()
           try {
-            await Promise.all([
-              exerciseStore.fetchExercises(true),
-              templateStore.fetchTemplates(),
-              templateStore.fetchSchedule(),
-              workoutStore.fetchAllWorkouts(true),
-              bodyMetricsStore.fetchRecords(true),
-            ])
+            await Promise.all([exerciseStore.fetchExercises(true), templateStore.fetchTemplates(), templateStore.fetchSchedule(), workoutStore.fetchAllWorkouts(true), bodyMetricsStore.fetchRecords(true)])
           } catch (e) {
             console.warn('Post-migration refresh failed:', e)
           }
@@ -84,7 +78,8 @@ export const useAuthStore = defineStore('auth', () => {
     } else {
       localStorage.removeItem('rememberedEmail')
     }
-    toast.success(`歡迎回來, ${response.data.data.user.username}!`)
+    const welcomeName = response.data.data.user.displayName || response.data.data.user.username
+    toast.success(`歡迎回來, ${welcomeName}!`)
     await router.push('/')
   }
 
@@ -105,13 +100,7 @@ export const useAuthStore = defineStore('auth', () => {
           const workoutStore = useWorkoutStore()
           const bodyMetricsStore = useBodyMetricsStore()
           try {
-            await Promise.all([
-              exerciseStore.fetchExercises(true),
-              templateStore.fetchTemplates(),
-              templateStore.fetchSchedule(),
-              workoutStore.fetchAllWorkouts(true),
-              bodyMetricsStore.fetchRecords(true),
-            ])
+            await Promise.all([exerciseStore.fetchExercises(true), templateStore.fetchTemplates(), templateStore.fetchSchedule(), workoutStore.fetchAllWorkouts(true), bodyMetricsStore.fetchRecords(true)])
           } catch (e) {
             console.warn('Post-migration refresh failed:', e)
           }
@@ -121,9 +110,42 @@ export const useAuthStore = defineStore('auth', () => {
       console.warn('Guest migration (register) failed:', e)
     }
 
-    toast.success(`註冊成功, 歡迎 ${response.data.data.user.username}!`)
+    const welcomeName = response.data.data.user.displayName || response.data.data.user.username
+    toast.success(`註冊成功, 歡迎 ${welcomeName}!`)
     await router.push('/')
     // window.location.reload() // avoid full reload to prevent flicker; router navigation is enough
+  }
+
+  async function loginWithGoogle(idToken) {
+    const response = await apiClient.post('/users/google', { idToken })
+    console.log({ response })
+    setAuthData(response.data.data.user, response.data.token)
+
+    // Optional migration only when user explicitly requests via flag
+    try {
+      const shouldMigrate = localStorage.getItem('guest_migration_after_auth') === 'true'
+      if (shouldMigrate) {
+        const result = await migrateGuestDataIfPresent()
+        console.log('[Auth] Guest data migration (google, explicit):', result)
+        localStorage.removeItem('guest_migration_after_auth')
+        if (result?.migrated) {
+          const exerciseStore = useExerciseStore()
+          const templateStore = useTemplateStore()
+          const workoutStore = useWorkoutStore()
+          const bodyMetricsStore = useBodyMetricsStore()
+          try {
+            await Promise.all([exerciseStore.fetchExercises(true), templateStore.fetchTemplates(), templateStore.fetchSchedule(), workoutStore.fetchAllWorkouts(true), bodyMetricsStore.fetchRecords(true)])
+          } catch (e) {
+            console.warn('Post-migration refresh failed:', e)
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Guest migration (google) failed:', e)
+    }
+
+    toast.success(`歡迎回來!`)
+    await router.push('/')
   }
 
   async function loginAsGuest() {
@@ -139,7 +161,8 @@ export const useAuthStore = defineStore('auth', () => {
   async function logout() {
     const username = user.value?.username || '使用者'
     clearAuthData()
-    toast.info(`${username}，您已成功登出。`)
+    const display = user.value?.displayName || username
+    toast.info(`${display}，您已成功登出。`)
     await router.push('/login')
   }
 
@@ -167,15 +190,10 @@ export const useAuthStore = defineStore('auth', () => {
 
       // No automatic migration on init anymore; user can migrate manually from Guest Data tab
 
-
       try {
         // Only load essential data on app init - exercises, templates and schedule
         // Workouts and body metrics will be loaded on-demand by their respective views
-        await Promise.all([
-          exerciseStore.fetchExercises(), 
-          templateStore.fetchTemplates(), 
-          templateStore.fetchSchedule()
-        ])
+        await Promise.all([exerciseStore.fetchExercises(), templateStore.fetchTemplates(), templateStore.fetchSchedule()])
         console.log('✅ Essential data fetched and ready. Workouts/metrics will load on-demand.')
       } catch (error) {
         console.error('❌ Error fetching initial data:', error)
@@ -190,6 +208,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     isGuest,
     login,
+    loginWithGoogle,
     register,
     logout,
     init,
