@@ -614,6 +614,7 @@ const navItems = computed(() => {
     { title: '動作管理', icon: 'mdi-weight-lifter', to: '/exercises' },
     { title: '訓練組合', icon: 'mdi-clipboard-list', to: '/templates' },
     { title: '訓練排程', icon: 'mdi-calendar-month', to: '/schedule' },
+    { title: '經典課表', icon: 'mdi-book-open-variant', to: '/classic-programs' },
     { title: '同步管理', icon: 'mdi-sync', to: '/sync-queue', badge: syncQueueCount.value || null },
   ]
   // 顯示「訪客資料」tab 只在訪客模式

@@ -23,7 +23,9 @@
               <v-checkbox :model-value="field.value" @update:model-value="field.onChange" class="mb-2" label="記住我" density="" />
             </Field>
 
-            <v-btn type="submit" color="primary" block size="large" :loading="isSubmitting" class="mb-6"> 登入 </v-btn>
+            <div class="login-btn-container mb-6">
+              <v-btn type="submit" color="primary" size="large" :loading="isSubmitting" style="min-width: 250px"> 登入 </v-btn>
+            </div>
           </div>
         </Form>
 
@@ -33,13 +35,13 @@
         </div>
 
         <!-- 社群登入按鈕 -->
-        <div class="auth-social mb-6">
-          <div id="googleSignInBtn" class="google-signin-container"></div>
+        <div class="d-flex justify-center mb-6">
+          <div id="googleSignInBtn"></div>
         </div>
 
         <!-- 其他操作按鈕 -->
         <div class="auth-actions">
-          <v-btn variant="outlined" color="secondary" block size="large" @click="handleGuestLogin" class="mb-4">
+          <v-btn variant="outlined" color="secondary" size="large" @click="handleGuestLogin" class="mb-4" style="min-width: 250px">
             <v-icon start>mdi-account-question</v-icon>
             以訪客身份繼續
           </v-btn>
@@ -121,9 +123,9 @@ onMounted(async () => {
       theme: 'outline',
       size: 'large',
       shape: 'rectangular',
-      width: '100%',
       text: 'signin_with',
       logo_alignment: 'left',
+      width: '250', // Set fixed width for Google button
     })
   } catch (e) {
     console.warn('Google Identity init failed:', e)
@@ -154,6 +156,11 @@ const handleGuestLogin = () => {
   width: 100%;
 }
 
+.login-btn-container {
+  display: flex;
+  justify-content: center;
+}
+
 .auth-divider {
   position: relative;
   text-align: center;
@@ -177,16 +184,11 @@ const handleGuestLogin = () => {
   font-size: 0.875rem;
 }
 
-.auth-social {
-  width: 100%;
-}
-
-.google-signin-container {
-  width: 100%;
-}
-
 .auth-actions {
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 /* Responsive adjustments */

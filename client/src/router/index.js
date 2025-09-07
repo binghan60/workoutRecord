@@ -13,6 +13,7 @@ import ExercisesView from '../views/ExercisesView.vue'
 import ScheduleView from '../views/ScheduleView.vue'
 import SyncQueueView from '../views/SyncQueueView.vue'
 import GuestDataView from '../views/GuestDataView.vue'
+import ClassicProgramsView from '../views/ClassicProgramsView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -75,6 +76,12 @@ const router = createRouter({
       path: '/guest-data',
       name: 'guest-data',
       component: GuestDataView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/classic-programs',
+      name: 'classic-programs',
+      component: ClassicProgramsView,
       meta: { requiresAuth: true },
     },
   ],
