@@ -50,6 +50,12 @@ export const useAuthStore = defineStore('auth', () => {
     const response = await apiClient.post('/users/login', { email, password })
     setAuthData(response.data.data.user, response.data.token)
 
+    // Always fetch user data after login, not just during migration
+    const exerciseStore = useExerciseStore()
+    const templateStore = useTemplateStore()
+    const workoutStore = useWorkoutStore()
+    const bodyMetricsStore = useBodyMetricsStore()
+
     // Optional migration only when user explicitly requests via flag
     try {
       const shouldMigrate = localStorage.getItem('guest_migration_after_auth') === 'true'
@@ -57,20 +63,24 @@ export const useAuthStore = defineStore('auth', () => {
         const result = await migrateGuestDataIfPresent()
         console.log('[Auth] Guest data migration (login, explicit):', result)
         localStorage.removeItem('guest_migration_after_auth')
-        if (result?.migrated) {
-          const exerciseStore = useExerciseStore()
-          const templateStore = useTemplateStore()
-          const workoutStore = useWorkoutStore()
-          const bodyMetricsStore = useBodyMetricsStore()
-          try {
-            await Promise.all([exerciseStore.fetchExercises(true), templateStore.fetchTemplates(), templateStore.fetchSchedule(), workoutStore.fetchAllWorkouts(true), bodyMetricsStore.fetchRecords(true)])
-          } catch (e) {
-            console.warn('Post-migration refresh failed:', e)
-          }
-        }
       }
     } catch (e) {
       console.warn('Guest migration (login) failed:', e)
+    }
+
+    // Always refresh data after successful login
+    try {
+      console.log('Login successful - fetching user data...')
+      await Promise.all([
+        exerciseStore.fetchExercises(true), 
+        templateStore.fetchTemplates(true), 
+        templateStore.fetchSchedule(true)
+      ])
+      console.log('✅ User data fetched successfully after login')
+    } catch (error) {
+      console.error('❌ Error fetching user data after login:', error)
+      // Don't block login flow, but show a warning
+      toast.warning('登入成功，但部分數據載入失敗。請嘗試重新整理頁面。')
     }
 
     if (rememberMe) {
@@ -87,6 +97,12 @@ export const useAuthStore = defineStore('auth', () => {
     const response = await apiClient.post('/users/register', userInfo)
     setAuthData(response.data.data.user, response.data.token)
 
+    // Always fetch user data after register, not just during migration
+    const exerciseStore = useExerciseStore()
+    const templateStore = useTemplateStore()
+    const workoutStore = useWorkoutStore()
+    const bodyMetricsStore = useBodyMetricsStore()
+
     // Optional migration only when user explicitly requests via flag
     try {
       const shouldMigrate = localStorage.getItem('guest_migration_after_auth') === 'true'
@@ -94,20 +110,24 @@ export const useAuthStore = defineStore('auth', () => {
         const result = await migrateGuestDataIfPresent()
         console.log('[Auth] Guest data migration (register, explicit):', result)
         localStorage.removeItem('guest_migration_after_auth')
-        if (result?.migrated) {
-          const exerciseStore = useExerciseStore()
-          const templateStore = useTemplateStore()
-          const workoutStore = useWorkoutStore()
-          const bodyMetricsStore = useBodyMetricsStore()
-          try {
-            await Promise.all([exerciseStore.fetchExercises(true), templateStore.fetchTemplates(), templateStore.fetchSchedule(), workoutStore.fetchAllWorkouts(true), bodyMetricsStore.fetchRecords(true)])
-          } catch (e) {
-            console.warn('Post-migration refresh failed:', e)
-          }
-        }
       }
     } catch (e) {
       console.warn('Guest migration (register) failed:', e)
+    }
+
+    // Always refresh data after successful registration
+    try {
+      console.log('Registration successful - fetching initial data...')
+      await Promise.all([
+        exerciseStore.fetchExercises(true), 
+        templateStore.fetchTemplates(true), 
+        templateStore.fetchSchedule(true)
+      ])
+      console.log('✅ Initial data fetched successfully after registration')
+    } catch (error) {
+      console.error('❌ Error fetching initial data after registration:', error)
+      // Don't block registration flow, but show a warning
+      toast.warning('註冊成功，但部分數據載入失敗。請嘗試重新整理頁面。')
     }
 
     const welcomeName = response.data.data.user.displayName || response.data.data.user.username
@@ -121,6 +141,12 @@ export const useAuthStore = defineStore('auth', () => {
     console.log({ response })
     setAuthData(response.data.data.user, response.data.token)
 
+    // Always fetch user data after Google login, not just during migration
+    const exerciseStore = useExerciseStore()
+    const templateStore = useTemplateStore()
+    const workoutStore = useWorkoutStore()
+    const bodyMetricsStore = useBodyMetricsStore()
+
     // Optional migration only when user explicitly requests via flag
     try {
       const shouldMigrate = localStorage.getItem('guest_migration_after_auth') === 'true'
@@ -128,20 +154,24 @@ export const useAuthStore = defineStore('auth', () => {
         const result = await migrateGuestDataIfPresent()
         console.log('[Auth] Guest data migration (google, explicit):', result)
         localStorage.removeItem('guest_migration_after_auth')
-        if (result?.migrated) {
-          const exerciseStore = useExerciseStore()
-          const templateStore = useTemplateStore()
-          const workoutStore = useWorkoutStore()
-          const bodyMetricsStore = useBodyMetricsStore()
-          try {
-            await Promise.all([exerciseStore.fetchExercises(true), templateStore.fetchTemplates(), templateStore.fetchSchedule(), workoutStore.fetchAllWorkouts(true), bodyMetricsStore.fetchRecords(true)])
-          } catch (e) {
-            console.warn('Post-migration refresh failed:', e)
-          }
-        }
       }
     } catch (e) {
       console.warn('Guest migration (google) failed:', e)
+    }
+
+    // Always refresh data after successful Google login
+    try {
+      console.log('Google login successful - fetching user data...')
+      await Promise.all([
+        exerciseStore.fetchExercises(true), 
+        templateStore.fetchTemplates(true), 
+        templateStore.fetchSchedule(true)
+      ])
+      console.log('✅ User data fetched successfully after Google login')
+    } catch (error) {
+      console.error('❌ Error fetching user data after Google login:', error)
+      // Don't block login flow, but show a warning
+      toast.warning('登入成功，但部分數據載入失敗。請嘗試重新整理頁面。')
     }
 
     toast.success(`歡迎回來!`)
@@ -177,7 +207,18 @@ export const useAuthStore = defineStore('auth', () => {
     } else if (localToken && localUser) {
       token.value = localToken
       user.value = localUser
+      // 確保 API client 的 Authorization header 正確設定
       apiClient.defaults.headers.common['Authorization'] = `Bearer ${localToken}`
+      
+      // 驗證 token 是否仍然有效
+      try {
+        await apiClient.get('/users/me')
+      } catch (error) {
+        // Token 無效，清除認證狀態
+        console.warn('Token validation failed during init, clearing auth state')
+        clearAuthData()
+        return
+      }
     } else {
       return
     }
@@ -191,13 +232,49 @@ export const useAuthStore = defineStore('auth', () => {
       // No automatic migration on init anymore; user can migrate manually from Guest Data tab
 
       try {
+        // Force refresh during init to ensure data is always fresh
         // Only load essential data on app init - exercises, templates and schedule
         // Workouts and body metrics will be loaded on-demand by their respective views
-        await Promise.all([exerciseStore.fetchExercises(), templateStore.fetchTemplates(), templateStore.fetchSchedule()])
+        
+        // 暫時禁用 toast 錯誤訊息，避免在初始化期間顯示不必要的錯誤
+        const originalToastError = toast.error
+        toast.error = () => {} // 暫時禁用
+        
+        await Promise.all([
+          exerciseStore.fetchExercises(true), // Force refresh
+          templateStore.fetchTemplates(true), // Force refresh
+          templateStore.fetchSchedule(true)   // Force refresh
+        ])
+        
+        // 恢復 toast 錯誤訊息
+        toast.error = originalToastError
+        
         console.log('✅ Essential data fetched and ready. Workouts/metrics will load on-demand.')
       } catch (error) {
+        // 恢復 toast 錯誤訊息（以防出錯）
+        const originalToastError = toast.error
+        if (typeof toast.error !== 'function') {
+          toast.error = originalToastError
+        }
+        
         console.error('❌ Error fetching initial data:', error)
         // 即使出錯也不阻止應用程式載入
+        // But add a retry mechanism for critical data
+        setTimeout(async () => {
+          try {
+            console.log('🔄 Retrying essential data fetch...')
+            await Promise.all([
+              exerciseStore.fetchExercises(true),
+              templateStore.fetchTemplates(true),
+              templateStore.fetchSchedule(true)
+            ])
+            console.log('✅ Essential data fetched successfully on retry')
+          } catch (retryError) {
+            console.error('❌ Retry failed for essential data:', retryError)
+            // 如果重試也失敗，顯示一次性的錯誤訊息
+            toast.warning('部分數據載入失敗，請檢查網路連線或稍後重試')
+          }
+        }, 2000) // Retry after 2 seconds
       }
     }
   }

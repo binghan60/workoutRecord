@@ -186,17 +186,61 @@ const getMotivationalMessage = () => {
 }
 
 // 震動提示（如果裝置支援）
+const hasVibrated12Seconds = ref(false)
+const hasVibrated5Seconds = ref(false)
+
 watch(
   () => props.restTimeRemaining,
-  (val) => {
-    const denom = Number(props.initialRestTime) || 0
-    if (denom > 0 && val / denom <= 0.2) {
-      try {
-        if ('vibrate' in navigator) {
-          navigator.vibrate?.(200)
+  (val, oldVal) => {
+    try {
+      // 只有在計時器沒有暫停時才震動
+      if ('vibrate' in navigator && !isPaused.value) {
+        // 在12秒時震動一次（包括APP重新開啟的情況）
+        if (val === 12 && !hasVibrated12Seconds.value) {
+          navigator.vibrate(300) // 較長的震動
+          hasVibrated12Seconds.value = true
         }
-      } catch {}
+        // 在5秒時震動兩次
+        else if (val === 5 && !hasVibrated5Seconds.value) {
+          navigator.vibrate([300, 100, 300]) // 雙震動
+          hasVibrated5Seconds.value = true
+        }
+        // 在0秒時震動三次
+        else if (val === 0 && oldVal > 0) {
+          navigator.vibrate([200, 100, 200, 100, 200]) // 三次短震動
+        }
+        
+        // 當時間過了關鍵點時，重置對應的標記（例如從11秒變回12秒以上時）
+        if (val > 12) {
+          hasVibrated12Seconds.value = false
+        }
+        if (val > 5) {
+          hasVibrated5Seconds.value = false
+        }
+      }
+    } catch (error) {
+      console.log('Vibration not supported or error:', error)
     }
+  },
+)
+
+// 重置震動標記當計時器重新開始時
+watch(
+  () => props.isResting,
+  (isResting) => {
+    if (isResting) {
+      hasVibrated12Seconds.value = false
+      hasVibrated5Seconds.value = false
+    }
+  },
+)
+
+// 當初始休息時間改變時也重置震動標記
+watch(
+  () => props.initialRestTime,
+  () => {
+    hasVibrated12Seconds.value = false
+    hasVibrated5Seconds.value = false
   },
 )
 

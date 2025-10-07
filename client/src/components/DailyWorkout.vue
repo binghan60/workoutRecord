@@ -52,6 +52,9 @@
                 </v-col>
               </v-row>
 
+              <!-- Historical Chart for Current Exercise -->
+              <WorkoutExerciseChart :exercise-name="field.value.name" />
+
               <!-- Action Buttons -->
               <v-row justify="center" class="mb-4 mt-12">
                 <v-btn @click="removeExercise(remove)" variant="text" color="red" size="small" prepend-icon="mdi-delete-outline">移除此動作</v-btn>
@@ -111,6 +114,7 @@ import { useRouter } from 'vue-router'
 import WorkoutSetRow from './WorkoutSetRow.vue'
 import WorkoutSummary from './WorkoutSummary.vue'
 import EnhancedRestTimer from './EnhancedRestTimer.vue'
+import WorkoutExerciseChart from './WorkoutExerciseChart.vue'
 
 const templateStore = useTemplateStore()
 const workoutStore = useWorkoutStore()

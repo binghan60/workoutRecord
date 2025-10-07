@@ -18,9 +18,16 @@ export class DataService {
   }
 
   /**
+   * 強制從伺服器重新載入數據
+   */
+  async forceRefresh() {
+    return await this.fetchAll(true)
+  }
+
+  /**
    * 獲取所有數據 (Offline-First)
    */
-  async fetchAll() {
+  async fetchAll(forceOnline = false) {
     if (this.isGuest) {
       const guestData = JSON.parse(localStorage.getItem(this.storageKey)) || [];
       console.log(`✅ Guest data loaded from ${this.storageKey}:`, guestData.length, 'items');
@@ -30,10 +37,10 @@ export class DataService {
     // 確保資料庫已初始化
     await initializeDB();
 
-    if (navigator.onLine) {
+    if (navigator.onLine || forceOnline) {
       // This try/catch IS necessary because we have fallback logic.
       try {
-        console.log(`Online: Fetching fresh data for ${this.dbTable}...`);
+        console.log(`${forceOnline ? 'Forced' : 'Online'}: Fetching fresh data for ${this.dbTable}...`);
         const endpoint = this.apiEndpoint === '/workouts' ? '/workouts/all' : this.apiEndpoint;
         const response = await apiClient.get(endpoint);
 

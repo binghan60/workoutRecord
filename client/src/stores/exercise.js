@@ -58,7 +58,7 @@ export const useExerciseStore = defineStore('exercise', () => {
     return groupAndSortExercises(customList)
   })
 
-  async function fetchExercises(forceRefresh = false) {
+  async function fetchExercises(forceRefresh = false, suppressErrorToast = false) {
     if (isLoading.value) return // 防止重複請求
     
     isLoading.value = true
@@ -75,7 +75,25 @@ export const useExerciseStore = defineStore('exercise', () => {
       lastFetchTime.value = new Date().toISOString()
       
     } catch (error) {
-      toast.error('無法載入訓練動作')
+      console.error('Failed to fetch exercises:', error)
+      // 只有在非初始化期間才顯示錯誤訊息
+      if (!suppressErrorToast) {
+        // 檢查是否為網路連線問題
+        if (!navigator.onLine) {
+          toast.warning('網路連線中斷，正在使用離線數據')
+        } else if (error.response?.status === 401) {
+          toast.error('登入已過期，請重新登入')
+        } else {
+          toast.error('無法載入訓練動作')
+        }
+      }
+      // 即使出錯也嘗試從本地獲取數據
+      try {
+        const localData = await dataService.value.fetchAll()
+        exercises.value = localData.map((ex) => ({ ...ex, isCustom: ex.isCustom || false }))
+      } catch (localError) {
+        console.error('Failed to fetch local exercises:', localError)
+      }
     } finally {
       isLoading.value = false
     }
